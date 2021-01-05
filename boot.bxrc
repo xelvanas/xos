@@ -1,0 +1,6 @@
+romimage: file=$BXSHARE/BIOS-bochs-latest, options=fastboot
+vgaromimage: file=$BXSHARE/VGABIOS-lgpl-latest
+ata0-master: type=disk, path="./build/vdisk.img", mode=flat
+boot: disk
+mouse: enabled=0
+keyboard: type=mf, serial_delay=200
