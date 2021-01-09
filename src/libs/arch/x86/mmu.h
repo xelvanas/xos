@@ -230,7 +230,7 @@ public:
     }
 
     void set_base(uint32_t base) {
-        _base_l = base & 0xffff;
+        _base_l =  base & 0xffff;
         _base_m = (base >> 16) & 0xff;
         _base_h = (base >> 24) & 0xff;
     }
@@ -251,5 +251,60 @@ public:
 
 // data segment descriptor
 using data_desc_t = code_desc_t;
+
+/* ---------------------------------------------------------------------------
+ * Gate Descriptors 
+ * To provide controlled access to code segments with different privilege
+ * levels, the processor provides special set of descriptor called gate
+ * descriptors. there're four kinds of gate descriptor:
+ * 1. Call Gates
+ * 2. Trap Gates
+ * 3. Interrupt Gates
+ * 4. Task Gates
+ * 
+ * Task gates are used for task task switching, but it's kinda expensive.
+ * modern operating systems use other approachs to do task-switching.
+ * 
+ * ------------------------------------------------------------------------ */
+
+class gate_desc_t
+{
+public:
+    uint16_t _offset_l;     // entry point of function
+    uint16_t _selector;     // segment selector
+    uint8_t  _parm_cnt : 5, // parameter count
+             _rsrv     : 3; // reserved
+    uint8_t  _type     : 5, // gate type
+             _dpl      : 2, // descriptor privilege level
+             _p        : 1; // gate valid
+    uint16_t _offset_h;
+
+public:
+
+    void initialize(uint32_t offset,
+                    uint16_t selector,
+                    uint8_t  type,
+                    uint8_t  dpl,
+                    // interrupt gates and trap gates are not using
+                    // parameter count
+                    uint8_t  param_cnt = 0)
+    {
+        set_offset(offset);
+        _selector = selector;
+        _type     = type      & 0b0001'1111;
+        _dpl      = dpl       & 0b0000'0011;
+        _parm_cnt = param_cnt & 0b0001'1111;
+        _p        = 1;
+    }
+
+    void set_offset(uint32_t offset) {
+        _offset_l = (uint16_t)offset;
+        _offset_h = (uint16_t)(offset >> 16);
+    }
+
+    uint32_t get_offset() const {
+        return _offset_l | _offset_h << 16;
+    }
+};
 
 #pragma pack(pop)

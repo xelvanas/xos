@@ -1,7 +1,12 @@
+#include <x86/asm.h>
 #include <x86/io.h>
 #include <stdint.h>
 #include <print.h>
 #include <debug.h>
+
+using namespace lkl;
+
+static print_t<def_screen_t, x86_io> print;
 
 void panic_spin(
     const char* filename,
@@ -9,24 +14,39 @@ void panic_spin(
 	const char* func,
 	const char* condition)
 {
-    asm volatile("cli" : : : "memory");
-    using print = lkl::print_t<lkl::def_screen_t, x86_isa>;
-    print pt;
-    
-    pt.get_cursor().update(0);
-    lkl::color_t color(lkl::color_t::B_RED);
-    pt.get_screen().fill(0, 240, lkl::col_char_t::INVISIBLE_CHAR);
+    // YOU CAN CHECK OUT ANY TIME YOU LIKE    
+    x86_asm::disable_intr();
+ 
+    print.set_default_color(color_t::B_GREEN | color_t::F_YELLOW);
+    print.get_cursor().update(0);
+    print.get_screen().fill(0, 480, col_char_t(0, color_t::B_GREEN));
 
-    pt.show("--------------------------------- FATAL"
+    print.show("--------------------------------- FATAL"
     " ERROR ---------------------------------\n");
-    pt.show("File: "); pt.show(filename); pt.line_feed();
-    pt.show("Line: "); pt.show(line); pt.line_feed();
-    pt.show("Function: "); pt.show(func); pt.line_feed();
-    pt.show("Condition: "); pt.show(condition); pt.line_feed();
-    pt.show("----------------------------------------"
+    print.show("File: "); print.show(filename); print.line_feed();
+    print.show("Line: "); print.show(line); print.line_feed();
+    print.show("Function: "); print.show(func); print.line_feed();
+    print.show("Condition: "); print.show(condition); print.line_feed();
+    print.show("----------------------------------------"
     "---------------------------------------\n");
 
-    // YOU CAN CHECK OUT ANY TIME YOU LIKE
     // BUT YOU CAN NEVER LEAVE!
     while(true);
 }
+
+void dbg_msg(const char* msg, uint8_t col) {
+    color_t old = print.set_default_color(col);
+    print.show(msg);
+    print.set_default_color(old);
+}
+
+void dbg_hex(uint32_t val, uint8_t col) {
+    color_t old = print.set_default_color(col);
+    print.hex(val);
+    print.set_default_color(old);
+}
+
+void dbg_ln() {
+    print.line_feed();
+}
+

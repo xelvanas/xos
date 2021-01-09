@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <debug.h>
+#include <bit.h>
 
 /* ---------------------------------------------------------------------------
  * 32-Bit Paging
@@ -103,122 +104,122 @@ public:
 
     // get present
     bool present() const {
-        return test(PG_PRESENT);
+        return lkl::bit_test(_value, PG_PRESENT);
     }
     
     // set present
     void present(bool p) {
-        set_flag(p, PG_PRESENT);
+        lkl::bit_set(_value, PG_PRESENT, p);
     }
 
     // get readonly
     bool ro() const {
-        return test(PG_RW);
+        return lkl::bit_test(_value, PG_RW);
     }
 
     // set readonly
     void ro(bool r) {
-        set_flag(!r, PG_RW);
+        lkl::bit_set(_value, !r, PG_RW);
     }
 
     // get user mode
     bool usr() const {
-        return test(PG_USER);
+        return lkl::bit_test(_value, PG_USER);
     }
 
     // set user mode
     void usr(bool u) {
-        set_flag(u, PG_USER);
+        lkl::bit_set(_value, PG_USER, u);
     }
 
     // get supervisor mode
     // user-mode accesses are not allowed if it is 'true'
     bool sup() const {
-        return test(PG_SUPERVISOR) == false;
+        return lkl::bit_test(_value, PG_SUPERVISOR) == false;
     }
 
     // set supervisor mode
     // sup(true) -> flag = 0, user-mode accesses are not allowed.
     void sup(bool s) {
-        set_flag(!s, PG_SUPERVISOR);
+        lkl::bit_set(_value, PG_SUPERVISOR, !s);
     }
 
     // get page write through
     bool pwt() const {
-        return test(PG_PWT);
+        return lkl::bit_test(_value, PG_PWT);
     }
 
     // set page write through
     void pwt(bool p) {
-        set_flag(p, PG_PWT);
+        lkl::bit_set(_value, PG_PWT, p);
     }
 
     // get page level cache disable
     bool pcd() const {
-        return test(PG_PCD);
+        return lkl::bit_test(_value, PG_PCD);
     }
 
     // set page level cache disable
     void pcd(bool p) {
-        set_flag(p, PG_PCD);
+        lkl::bit_set(_value, PG_PCD, p);
     }
 
     // get page accessed
     bool accessed() const {
-        return test(PG_ACCESSED);
+        return lkl::bit_test(_value, PG_ACCESSED);
     }
 
     // set page accessed
     void accessed(bool a) {
-        set_flag(a, PG_ACCESSED);
+        lkl::bit_set(_value, PG_ACCESSED, a);
     }
 
     // get dirty
     // PTE only
     bool dirty() const {
-        return test(PG_DIRTY);
+        return lkl::bit_test(_value, PG_DIRTY);
     }
 
     // set dirty
     // PTE only
     void dirty(bool d) {
-        set_flag(d, PG_DIRTY);
+        lkl::bit_set(_value, PG_DIRTY, d);
     }
 
     // get page size
     // PDE only
     bool ps() const {
-        return test(PG_SIZE);
+        return lkl::bit_test(_value, PG_SIZE);
     }
 
     // set page size
     // PDE only
     void ps(bool p) {
-        set_flag(p, PG_SIZE);
+        lkl::bit_set(_value, PG_SIZE, p);
     }
 
     // get page attribute table
     // PTE only
     bool pat() const {
-        return test(PG_PAT);
+        return lkl::bit_test(_value, PG_PAT);
     }
 
     // set page attribute table
     // PTE only
     void pat(bool p) {
-        set_flag(p, PG_PAT);
+        lkl::bit_set(_value, PG_PAT, p);
     }
 
     // get page attribute table
     // PTE only
     bool global() const {
-        return test(PG_GLOBAL);
+        return lkl::bit_test(_value, PG_GLOBAL);
     }
 
     // set page attribute table
     // PTE only
     void global(bool g) {
-        set_flag(g, PG_GLOBAL);
+        lkl::bit_set(_value, PG_GLOBAL, g);
     }
 
     // set physical address
@@ -236,15 +237,6 @@ public:
     const pge_t& operator=(uint32_t val) {
         *(uint32_t*)this = val;
         return *this;
-    }
-
-private:
-    bool test(uint32_t flag) const {
-        return (_value & flag) != 0;
-    }
-
-    void set_flag(bool val, uint32_t flag) {
-        _value = val ? _value | flag : _value & (~flag);
     }
 };
 

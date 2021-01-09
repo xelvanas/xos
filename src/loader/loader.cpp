@@ -23,43 +23,67 @@
  *    here. If you are not sure what 'asm' code the compiler will 
  *    generate, go figure it out or do NOT write code that way.
  * 
- * 5. No 'malloc' 'free' functions yet, 'new' and 'delete' don't even
+ * 5. No 'malloc' 'free' functions yet, 'new' and 'delete'? don't even
  *    think about it. we even do NOT 'alloc/free' any memory here.
  *    because we own the whole physical memory. but there's still one
- *    catch here, some segments are used by BIOS or other things. read
+ *    catch, some segments are used by BIOS or other things. read
  *    'low level memory layout' to ensure that you're not replacing
  *    important data which BIOS used before.
  *
  * ------------------------------------------------------------------------ */
 #include <print.h>
 #include <x86/io.h>
+#include <x86/asm.h>
 #include <x86/paging.h>
+#include <x86/idt.h>
+#include <debug.h>
+
+/* 
+ * In normal situations, compiler and standard libs did a lot of jobs
+ * for us. for example: we can pass parameters to a command line, then
+ * read it in the 'main' function. before we enter 'main' function,
+ * some invisible works have been done. invoking global constructors is
+ * one of them.
+ * but we're writing kernel here, nobody do that for us. we have to do
+ * it ourselves.
+ * also, linker(ld) has an option: --warn-constructors
+ * --warn-constructors Warn if any global constructors are used. This is
+ *          only useful for a few object file formats. For formats like
+ *          COFF or ELF , the linker can not detect the use of global 
+ *          constructors.
+ * so linker cannot do the job for us too
+ */
+typedef void (*pfn_global_ctor)(void);
+extern pfn_global_ctor  __init_array_start[];
+extern pfn_global_ctor  __init_array_end[];
+#define CTORS_START    (__init_array_start[0])
+#define CTORS_END      (__init_array_end)
+inline void invoke_global_ctors() {
+    pfn_global_ctor *ctor;
+    for (void (**ctor)() = &CTORS_START; ctor < CTORS_END; ++ctor) {
+        (*ctor)();
+    }
+}
 
 using namespace lkl;
 
 void msg_welcome() {
-    print_t<def_screen_t, x86_isa> pt;
+
     color_t col1(color_t::B_GREEN  |
                  color_t::F_YELLOW |
                  color_t::MASK_BLINK);
     color_t col2(color_t::F_YELLOW, color_t::B_GREEN);
-    pt.set_default_color(col2);
-    pt.show("welcome to ");
-    pt.set_default_color(col1);
-    pt.show("XOS!\n");
+    dbg_msg("welcome to ", col2);
+    dbg_msg("XOS!\n", col1);
 }
 
 void msg_paging_enabled() {
-    print_t<screen_t<80, 25, 0xC00B8000>, x86_isa> prt;
-    color_t col(color_t::B_GREEN | color_t::F_WHITE);
-    
-    prt.set_default_color(col);
-    prt.show("Paging Enabled.\n");
+    dbg_msg("Paging Enabled.\n");
 }
 
 void enable_paging(uint32_t addr) {
-    const uint32_t entry_num = 1024;
 
+    const uint32_t entry_num = 1024;
     pde_t pde;
     pde.present(false); // not present yet
     pde.sup(true); // user-mode accesses disallowed
@@ -108,17 +132,29 @@ void enable_paging(uint32_t addr) {
     
     // CR3 has two attributes
     // but its default value could be zeroes
-    x86_isa::set_cr3((uint32_t)addr);
+    x86_asm::set_cr3((uint32_t)addr);
 
     // enable paging
-    x86_isa::set_cr0(x86_isa::get_cr0() | 0x80000000);
+    x86_asm::set_cr0(x86_asm::get_cr0() | 0x80000000);
 }
 
 int main() {
+    // never move any code before invoke_global_ctors()
+    // unless you know what you're doing.
+    invoke_global_ctors();
+
+    print_t<def_screen_t, x86_io> print;
     msg_welcome();
     enable_paging(0x00100000);
     msg_paging_enabled();
+    pic8259a::init();
+    dbg_hex(pic8259a::get_master_imr()); dbg_ln();
+    
+    interrupt<x86_asm>::init_idt((gate_desc_t*)0x8000, IDT_DESC_CNT);
 
+    auto_intr<x86_asm> aintr(true);
+    pic8259a::enable(pic8259a::DEV_TIMER);
+    dbg_hex(pic8259a::get_master_imr()); dbg_ln();
     while(1);
     return 0;
 }

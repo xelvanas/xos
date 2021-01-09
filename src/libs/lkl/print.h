@@ -44,9 +44,9 @@ ns_lite_kernel_lib_begin
  *           1110  =   Yellow	
  *           1111  =   White
  * 	
- * by default, there are 16 colors for text and only 8 colors for background.
- * There is a way to get all the 16 colors for background, which requires 
- * turning off the "blinking attribute".
+ * by default, there are 16 colors for text and only 8 colors for
+ * background. There is a way to get all the 16 colors for background,
+ * which requires turning off the "blinking attribute".
  */
 
 class color_t
@@ -447,10 +447,22 @@ class print_t
 private:
     screen                  _scr;
     cursor_t<screen, isa>   _cur;
-    color_t                 _def_color;
+    color_t                 _def_color = color_t::F_WHITE |
+                                         color_t::B_GREEN;
 public:
-    void set_default_color(color_t col) {
+    print_t(color_t col = color_t::F_WHITE | color_t::B_BLACK) :
+        _def_color(col) {
+
+    }
+
+    color_t set_default_color(color_t col) {
+        color_t old = _def_color;
         _def_color = col;
+        return old;
+    }
+
+    color_t get_default_color() const {
+        return _def_color;
     }
 
     // put_char only write visible chars

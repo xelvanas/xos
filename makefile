@@ -19,6 +19,8 @@ RM        := rm -rf
 # Default C Compiler Flags
 CFLAGS    = -m32#                 # Generate 32-bit code.
 
+CFLAGS   += -ffreestanding
+
 CFLAGS   += -Wreturn-type#        # Warn return-type that defaults to "int"
 
 CFLAGS   += -Werror=return-type#  # Make warnings into hard errors.
@@ -29,9 +31,8 @@ CFLAGS   += -fno-stack-protector# # Don't Emit extra code to check for buffer
 CFLAGS   += -fno-builtin#         # Don't recognize built-in functions that
                                   # do not begin with __builtin_ as prefix
 
-CFLAGS   += -ffunction-sections#  # Place each function or data item into its 
-
-CFLAGS   += -fdata-sections#      # own section in the output file if the 
+#CFLAGS   += -ffunction-sections#  # Place each function or data item into its 
+#CFLAGS   += -fdata-sections#      # own section in the output file if the 
                                   # target supports arbitrary sections. The 
 								  # name of the function or the name of the 
 								  # item determines the section's name in the
@@ -60,10 +61,12 @@ CFLAGS   += -c#                   # Do not to run the linker
 # --------------------------------
 # Default C++ Compiler Flags
 CXXFLAGS  = -std=c++2a#           # Use C++ 20 standard
+
 CXXFLAGS += -nostdinc++#          # Do not search for header files in the C++
                                   # specific standard directories
 CXXFLAGS += ${CFLAGS}#            # Append C compiler flags
 
+CXXFLAGS += -fno-exceptions
 
 # Default Linker Options 
 LDFLAGS   = -m elf_i386#          # Generate x86 elf
@@ -98,7 +101,7 @@ BTROOT      := $(SRCDIR)/$(BTNAME)
 
 BOOT        := $(BLDIR)/$(BTNAME).bin
 
-$(BOOT) : $(BTROOT)/$(BTNAME).s
+$(BOOT): $(BTROOT)/$(BTNAME).s
 	@mkdir -p $(dir $@)
 
 	nasm -f bin $< -o $@
@@ -111,7 +114,7 @@ $(BOOT) : $(BTROOT)/$(BTNAME).s
 # Common LIBs
 LBNAME       := libs
 
-LBROOT       := $(SRCDIR)/$(LBNAME)/
+LBROOT       := $(SRCDIR)/$(LBNAME)
 
 # Lib Include Directory
 LBDIRS        = $(LBROOT)/std
@@ -125,14 +128,24 @@ LBDIRS       += $(LBROOT)/lkl
 # Lib Source Code
 LBSRCS       := $(shell find $(LBROOT) -name *.cpp)
 
+# Lib Assembler Code
+LBASMS       := $(shell find $(LBROOT) -name *.s)
+
+# Lib Assembler Objects
+LBAOBJS    := $(LBASMS:./src/%.s=$(BLDIR)/%.o)
+
 # Lib Objects
 LBOBJS       := $(LBSRCS:./src/%.cpp=$(BLDIR)/%.o)
 
 # Lib Include Flags
 LBINCS       := $(addprefix -I,$(LBDIRS)) #$(addprefix -I,$(LBDIRS))
 
+
+$(filter %.o,$(LBAOBJS)):./build/%.o: $(SRCDIR)/%.s
+	@mkdir -p $(dir $@)
+	$(AS) -f elf $< -o $@
+
 $(filter %.o,$(LBOBJS)):./build/%.o: $(SRCDIR)/%.cpp
-	@echo  [ $@ ]
 	@mkdir -p $(dir $@)
 	$(CXX) $(LBINCS) $(CXXFLAGS) $< -o $@
 # End of Common LIBs
@@ -170,7 +183,7 @@ $(filter %.o,$(LOBJS)):./build/%.o: $(SRCDIR)/%.cpp
 	$(CXX) $(LBINCS) $(LINCS) $(CXXFLAGS)  $< -o $@
 
 # Generate Executable Loader
-$(LOADER): $(LOBJS) $(LBOBJS)
+$(LOADER): $(LOBJS) $(LBOBJS) $(LBAOBJS)
 	$(LD) $(LDFLAGS) -T $(LROOT)/ldscript -o $@ $^
 
 # End of LOADER.bin
@@ -223,4 +236,6 @@ run: all
 test: $(TESTS)
 	./$(TESTS)
 
+-include $(LOBJS:.o=.d)
+-include $(LBOBJS:.o=.d)
 # ----------------------------------------------------------------------------
