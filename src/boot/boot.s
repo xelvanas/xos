@@ -5,6 +5,8 @@ SYS_CODE_SEGMENT equ 0x08
 SYS_DATA_SEGMENT equ 0x10
 USR_CODE_SEGMENT equ 0x18
 USR_DATA_SEGMENT equ 0x20
+ARDS_NUMB_ADDR   equ 0x800
+ARDS_DATA_ADDR   equ 0x804
 
 ; OLD SOLUTION:
 ; LOADER_MODULE_ADDRESS           equ 0x0500
@@ -13,13 +15,13 @@ USR_DATA_SEGMENT equ 0x20
 ;
 ; A: 1. partitions normally start and stop at cylinder boundaries. a disk
 ;    track normally has 63 sectors. since the first sector used by 'mbr',
-;    partition 0 can't contain the first track. which leaves up 62 available
-;    sectors (62*512 = 31744 bytes = 31 KB).
+;    partition 0 can't contain the first track. which leaves up 62 
+;    available sectors (62*512 = 31744 bytes = 31 KB).
 ;
-;    2. the 'real mode' IVT(interrupt vector table) used 0x0000-0x03ff (1KB),
-;    BDA (BIOS Data Area) used 0x0400-0x04ff and MBR will be loaded at 0x7c00.
-;    there's a gap between 0x0500-0x7bff. that's 0x76ff (30463 ≈ 29.7 KB)
-;    bytes available space.
+;    2. the 'real mode' IVT(interrupt vector table) used 0x0000-0x03ff 
+;    (1KB), BDA (BIOS Data Area) used 0x0400-0x04ff and MBR will be
+;    loaded at 0x7c00. there's a gap between 0x0500-0x7bff. that's 0x76ff
+;     (30463 ≈ 29.7 KB) bytes available space.
 ;
 ;    3. we cannot load whole 31 KB data into 29.7 KB memory space, that's
 ;    why we choose only to load 59 sectors (30208 bytes = 29.5 KB) data.
@@ -27,25 +29,30 @@ USR_DATA_SEGMENT equ 0x20
 ; NEW SOLUTION:
 ; Q: why do we change this?
 ;
-; A: 1. the first reason is that 29.7KB is NOT a big space to store loaders.
-;       I encountered a couple of weired bugs while developing Loader. for 
-;       example: some static global variables have 0 values. I spent a lot of
-;       time to figure out what happend. It came out that my boot.bin(on MBR)
-;       only loaded 59 sectors. no real '.data sections' loaded into memory.
-;       trust me, that's an awful experience.
+; A: 1. the first reason is that 29.7KB is NOT a big space to store
+;       loaders. I encountered a couple of weired bugs while developing
+;       Loader.
+;       for example:
+;       some static global variables have 0 values. I spent a lot of time
+;       to figure out what happend. It came out that my boot.bin(on MBR)
+;       only loaded 59 sectors. no real '.data sections' loaded into 
+;       memory. trust me, that's an awful experience.
 ;
-;    2. the OLD Hard Disk Drivers(HDD) do have disk inside, each disk has 63
-;       sectors per track. Solid State Disks(SSD) do NOT have same limit, many 
-;       tools make partitions aligned on 1MB. for a disk with 512 bytes per
-;       sector this equates to 2048 sector alignment. there're 2047 free
-;       sectors between 'MBR' and 'first Partition'. it's really a big space
-;       for a loader.
-;
+;    2. the OLD Hard Disk Drivers(HDD) do have disk inside, each disk has
+;       63 sectors per track. Solid State Disks(SSD) do NOT have same
+;       limit, many tools make partitions aligned on 1MB. for a disk with
+;       512 bytes per sector this equates to 2048 sector alignment.
+;       there're 2047 free sectors between 'MBR' and 'first Partition'.
+;       it's really a big space for a loader.
+;       
 ;    3. in 'Kernel' stage, 'Loader' is no longer used. It seems to store 
-;       'Loader' in a higher address would be a good choice. because it can be 
-;       safely replaced later. and in most cases, 0x00100000 is the starting
-;       address of the biggest valid memory block. I decide to read 'Loader'
-;       File at 0x00500000, then load "Loader" at 0x00300000.
+;       'Loader' in a higher address would be a good choice. because it 
+;       can be safely replaced later. and in most cases, 0x00100000 is 
+;       the starting address of the biggest valid memory block. I decide
+;       to read 'Loader' File at 0x00500000, then load "Loader" at 
+;       0x00300000.
+;
+
 LOADER_FILE_ADDRESS             equ 0x00500000
 LOADER_MODULE_ADDRESS           equ 0x00300000
 LOADER_MODULE_SECTOR_COUNT      equ 2047
@@ -59,11 +66,13 @@ LOADER_MODULE_SECTOR_COUNT      equ 2047
     mov     ax, cs ; set segment registers
     mov     ds, ax ;
     mov     es, ax ;
-    call    e820_detect_memory
+    
     call    clear_screen
 
     mov     dx, 0
     call    move_cursor_pos
+
+    call    e820_detect_memory
     
     ; ENABLE A20 LINE
     ; wait til 8042 input buffer empty
@@ -79,7 +88,7 @@ wait_8042_buf_empty_again:
     test    al, 2  ; test the second bit
     jnz     wait_8042_buf_empty_again
     mov     al, 0xdf    ; save value in 'al'
-    out     0x60, al    ; send 'al' to 0x60 data port
+    out     0x60, al    ; send 'al' to 0x60 data port    
 
     ; ENABLE GDT
     ; GDTR is a register to store GDT address and size.
@@ -113,6 +122,7 @@ protected_mode_code:
     mov     ax, 0x10
     mov     ss, ax
     mov     eax, 0x9f000
+    ; mov     dword [eax], 0xc0dec4fe
     mov     esp, eax
 
     call    read_first_2047_sectors
@@ -178,10 +188,11 @@ e820_detect_memory:
     pusha
 ; point ES:DI at ards_buffer
     ; back ds:si es:di
-    push    es
-    mov     ax, 0x9000
-    mov     es, ax
-    mov     di, 0xf000
+    ; push    es
+    ; mov     ax, 0x9000
+    ; mov     es, ax
+    mov     di, ARDS_DATA_ADDR
+    mov     dword [ARDS_NUMB_ADDR], 0
 ; clear ebx
     xor     ebx, ebx
 ; set magic number
@@ -196,7 +207,7 @@ e820_detect_memory:
 ; jump if 'carry flag' is set
     jc      .failed
     add     di, cx  ; di+20
-    inc     byte [es:0xf104]
+    inc     byte [ARDS_NUMB_ADDR]
     cmp     ebx, 0
     jnz     .again ; 
 ; successed
@@ -208,7 +219,7 @@ e820_detect_memory:
     ; mov     bx, msg_e820_failed
     ; call    print_string
 .end:
-    pop     es
+    ; pop     es
     popa
     ret
 ; end of FUNCTION: e820_detect_memory

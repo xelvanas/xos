@@ -15,7 +15,7 @@ void panic_spin(
 	const char* condition)
 {
     // YOU CAN CHECK OUT ANY TIME YOU LIKE    
-    x86_asm::disable_intr();
+    x86_asm::turn_interrupt_off();
  
     print.set_default_color(color_t::B_GREEN | color_t::F_YELLOW);
     print.get_cursor().update(0);
@@ -45,8 +45,24 @@ void dbg_hex(uint32_t val, uint8_t col) {
     print.hex(val);
     print.set_default_color(old);
 }
+void dbg_num(uint32_t val, uint8_t col = 0x07) {
+    color_t old = print.set_default_color(col);
+    print.show(val);
+    print.set_default_color(old);
+}
+
 
 void dbg_ln() {
     print.line_feed();
 }
+void dbg_mdl(const char* msg, uint32_t val, uint8_t col) {
+    dbg_msg(msg, col);
+    dbg_num(val, col);
+    dbg_ln();
+}
 
+void dbg_mhl(const char* msg, uint32_t val, uint8_t col) {
+    dbg_msg(msg, col);
+    dbg_hex(val, col);
+    dbg_ln();
+}

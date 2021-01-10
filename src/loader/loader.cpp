@@ -24,7 +24,7 @@
  *    generate, go figure it out or do NOT write code that way.
  * 
  * 5. No 'malloc' 'free' functions yet, 'new' and 'delete'? don't even
- *    think about it. we even do NOT 'alloc/free' any memory here.
+ *    think about it. we even do NOT 'alloc/free' any memory for now.
  *    because we own the whole physical memory. but there's still one
  *    catch, some segments are used by BIOS or other things. read
  *    'low level memory layout' to ensure that you're not replacing
@@ -37,6 +37,8 @@
 #include <x86/paging.h>
 #include <x86/idt.h>
 #include <debug.h>
+#include <timer.h>
+#include <memory.h>
 
 /* 
  * In normal situations, compiler and standard libs did a lot of jobs
@@ -135,7 +137,8 @@ void enable_paging(uint32_t addr) {
     x86_asm::set_cr3((uint32_t)addr);
 
     // enable paging
-    x86_asm::set_cr0(x86_asm::get_cr0() | 0x80000000);
+    x86_asm::turn_paging_on();
+    //x86_asm::set_cr0(x86_asm::get_cr0() | 0x80000000);
 }
 
 int main() {
@@ -143,18 +146,30 @@ int main() {
     // unless you know what you're doing.
     invoke_global_ctors();
 
-    print_t<def_screen_t, x86_io> print;
+    // auto next = x86_asm::move_gdt_to((void*)0x0500, 0x7C00-0x0500);
+    // dbg_msg("next address: ");
+    // dbg_hex((uint32_t)next);
+    // dbg_ln();
+
     msg_welcome();
     enable_paging(0x00100000);
     msg_paging_enabled();
-    pic8259a::init();
-    dbg_hex(pic8259a::get_master_imr()); dbg_ln();
-    
-    interrupt<x86_asm>::init_idt((gate_desc_t*)0x8000, IDT_DESC_CNT);
 
-    auto_intr<x86_asm> aintr(true);
-    pic8259a::enable(pic8259a::DEV_TIMER);
-    dbg_hex(pic8259a::get_master_imr()); dbg_ln();
+    mem_mgr::init();
+
+    auto addr = mem_mgr::alloc(mem_mgr::PT_KERNEL, 1);
+    dbg_msg("alloc:");
+    dbg_hex((uint32_t)addr);
+    dbg_ln();
+
+    // pic8259a::init();
+    // dbg_hex(pic8259a::get_master_imr()); dbg_ln();    
+    // interrupt<x86_asm>::init((gate_desc_t*)0x8000, 0x30);
+    // auto_intr<x86_asm> aintr(true);
+    // pic8259a::enable(pic8259a::DEV_TIMER);
+    // dbg_hex(pic8259a::get_master_imr()); dbg_ln();
+    // pit8253::freq(4000);
+
     while(1);
     return 0;
 }

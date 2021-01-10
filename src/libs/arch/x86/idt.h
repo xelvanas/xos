@@ -4,11 +4,10 @@
 #include <bit.h>
 #include <debug.h>
 
-extern "C" void main_intr_handler(uint16_t num);
+extern void* intr_entry_table[0x30];
+extern "C" void main_intr_handler(uint32_t num);
 
-#define IDT_DESC_CNT 0x30 // 48
-
-extern void* intr_entry_table[IDT_DESC_CNT];
+// #define IDT_DESC_CNT 0x30 // 48
 
 
 class pic8259a
@@ -25,6 +24,7 @@ private:
         PIC_S_DATA      = 0xA1
     };   
 public:
+
 /* 
  * INTERRUPT VECTORs:
  * 0x20: timer
@@ -123,12 +123,13 @@ public:
     }
 
 private:
+    // ois: old interrupt state
     bool has_ois() const {
         return lkl::bit_test(_states, STAT_HAS_OIS);
     }
 
     // use this only after check object has_ois == true
-    // otherwise, invalid return value.
+    // otherwise, invalid value.
     bool get_ois() const {
         return lkl::bit_test(_states, STAT_OIS);
     }
@@ -155,9 +156,9 @@ private:
     // unconditional set
     void set_intr(bool st) {
         if (st == true) {
-            isa::enable_intr();
+            isa::turn_interrupt_on();
         } else {
-            isa::disable_intr();
+            isa::turn_interrupt_off();
         }
     }
 };
@@ -166,10 +167,18 @@ template<typename isa>
 class interrupt
 {
 public:
-    static void init_idt(gate_desc_t* idt, uint32_t len) {
+    typedef void (*handler)(uint32_t no);
+    enum 
+    {
+        // idt entry count 
+        IDT_ENT_CNT = 0x30
+    };
+    static handler s_handlers[IDT_ENT_CNT];
+public:
+    static void init(gate_desc_t* ent, uint32_t len) {
         
         for(uint32_t i = 0;i < len; ++i) {
-            idt[i].initialize((uint32_t)intr_entry_table[i],
+            ent[i].initialize((uint32_t)intr_entry_table[i],
                               0x08,
                               0b01110,
                               0);
@@ -177,7 +186,7 @@ public:
 
         idt_desc_t desc = {
             (uint16_t)(sizeof(gate_desc_t)*len - 1),
-            (uint32_t)idt
+            (uint32_t)ent
         };
 
         x86_asm::load_idt(&desc);

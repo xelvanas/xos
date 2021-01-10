@@ -196,8 +196,8 @@ public:
 
     enum
     {
-        DEF_CODE_TYPE = 0b1010,
-        DEF_DATA_TYPE = 0b0010
+        DESC_TYPE_CODE = 0b1010,
+        DESC_TYPE_DATA = 0b0010
     };
 
     void reset()

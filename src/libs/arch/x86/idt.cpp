@@ -227,11 +227,29 @@ void pic8259a::init()
     bit_set(_states, PIC_INITIALIZED, true);
 }
 
-print_t<def_screen_t, x86_io> pt(color_t::B_GREEN | color_t::F_WHITE);
-void main_intr_handler(uint16_t num) {
-    static int number = 0;
-    pt.add_char('A'+ (number%26));
-    pt.add_char(' ');
-    number++;
-    // dbg_msg("x")
+
+void main_intr_handler(uint32_t no) {
+    dbg_msg("x");
 }
+
+template<typename T>
+interrupt<T>::handler
+interrupt<T>::s_handlers[interrupt<T>::IDT_ENT_CNT];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -7,9 +7,10 @@ extern "C"
       const char* func,
       const char* condition);
 
-   void dbg_msg( const char* msg, uint8_t col = 0x07); //0x07:light gray
+   void dbg_msg(const char* msg, uint8_t col = 0x07); //0x07:light gray
    void dbg_hex(uint32_t val, uint8_t col = 0x07);
    void dbg_ln();
+   void dbg_mhl(const char* msg, uint32_t val, uint8_t col = 0x07);
 }
 
 #define PANIC(...) panic_spin (__FILE__, __LINE__, __func__, __VA_ARGS__)

@@ -9,6 +9,14 @@ bit_set(T& r, U s, bool b) {
     r = b ? r | (T)s : r & (T)~s;
 }
 
+
+// this won't change value of first parameter
+template<typename T, typename U>
+inline T 
+bit_ret(T r, U s, bool b) {
+    return b ? r | (T)s : r & (T)~s;
+}
+
 template<typename T, typename U>
 inline bool 
 bit_test(const T r, U s) {

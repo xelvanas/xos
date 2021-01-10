@@ -4,3 +4,4 @@ ata0-master: type=disk, path="./build/vdisk.img", mode=flat
 boot: disk
 mouse: enabled=0
 keyboard: type=mf, serial_delay=200
+megs: 64
