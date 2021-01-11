@@ -3,36 +3,152 @@
 %define ERROR_CODE nop
 %define ZERO push 0
 
-; extern .init_array
+;
+; Basic INTERRUPT Procedures: 
+;
+; If an interrupt occurred in userspace (say CPL = 3), CPU does the
+; following:
+; 1. CPU saves SS, ESP, EFLAGS, CS and EIP registers in somewhere
+;    temporarily. leaves 'user stack' intact.
+; 
+;   │ User Stack               │         │ ESP0 from TSS            │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │           0x56           │         │                          │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │           0x34           │         │                          │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │           0x12           │         │                          │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │                          │         │                          │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │                          │         │                          │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │                          │         │                          │
+; 
+; 2. Loads SS0 and ESP0 (CPL = 0) from the TSS into the SS and ESP
+;    registers and switches to new stack.
+; 
+;   │ ESP = ESP0   (kernel)    │
+;   ├──────────────────────────┤
+;   │                          │
+;   ├──────────────────────────┤
+;   │                          │
+;   ├──────────────────────────┤
+;   │                          │
+;   ├──────────────────────────┤
+;   │                          │
+;   ├──────────────────────────┤
+;   │                          │
+;   ├──────────────────────────┤
+;   │                          │
+;
+; 3. Pushes registers which CPU saved in step 1 into new stack.
+; 4. Pushes an error code on the new stack if it has one.
+; 
+;   │ ESP = ESP0   (kernel)    │
+;   ├──────────────────────────┤
+;   │          SS              │
+;   ├──────────────────────────┤
+;   │          ESP             │
+;   ├──────────────────────────┤
+;   │          EFLAGS          │
+;   ├──────────────────────────┤
+;   │          CS              │
+;   ├──────────────────────────┤
+;   │          EIP             │
+;   ├──────────────────────────┤
+;   │          Error Code      │
+;   ├──────────────────────────┤
+;   │                          │
+; 
+; 5. Loads 'selector' and 'offset' from 'IDT' into CS and EIP.
+; 6. If call is through an interrupt gate, clears the 'IF' flag in the
+;    EFLAGS register.
+; 7. Execute ISR at new privilege level.
+; 
+;   │ User Stack               │         │ ESP0 from TSS            │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │           0x56           │         │                          │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │           0x34           │         │                          │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │           0x12           │         │                          │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │                          │         │                          │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │                          │         │                          │
+;   ├──────────────────────────┤         ├──────────────────────────┤
+;   │                          │         │                          │
+; 
+; KERNEL:
+; If an interrupt occurred in kernel space, no stack switching occurs.
+; CPU just uses current kernel stack, those steps are:
+; 1. Push EFLAGS, CS, EIP into stack.
+; 2. Push an error code if there is one.
+;  
+;    │ Kernel Stack             │
+;    ├──────────────────────────┤
+;    │          EFLAGS          │
+;    ├──────────────────────────┤
+;    │          CS              │
+;    ├──────────────────────────┤
+;    │          EIP             │
+;    ├──────────────────────────┤
+;    │          Error Code      │
+;    ├──────────────────────────┤
+;    │                          │
+;    ├──────────────────────────┤
+;    │                          │
+;
+; 3. Load new CS, EIP from IDT.
+; 4. Clear 'IF' flag in the EFLAGS if call is through an 
+;    'interrupt gate'.
+; 5  Execute the ISR.
+; 
+; The major difference between two cases is 'Stack Switching' and in
+; user space, SS, ESP pushed into kernel stack. but don't worry that,
+; CPU will automatically switch back to ESP3 and SS3 after 'iret'.
+; 
+; Remeber, when interrupt occurs, we are in the middle of some code in
+; user space or kernel space. in order to go back there, ISRs have to 
+; save current procedure state before it gets corrupted. 
+; those registers are:
+; segment registers: DS, FS, ES, GS (CPU already saved CS)
+; generic registers: EAX ECX EDX EBX ESP EBP ESI and EDI
+; those registers are context of a thread, that's where we do the 
+; task switching.
+; after those registers saved and environment is ready, ISR should
+; do its work, but most important thing to do is to acknowledge 
+; interrupt by sending 'EOI' command to PIC.
+; 
+; after doing all its work there should be clean return from interrupt,
+; that will restore the state of interrupted procedure (popa, restore
+; data segment), enable interrupts (sti) that were disabled by CPU
+; before entering ISR
+; 
 
-; section .text
-; global my_init;
-; my_init:
-;     call .init_array
-;     ret
+extern main_cxx_isr
 
-extern main_intr_handler
-
-; we cannot use C/C++ write functions which use 'iret' to return to 
+; we cannot use C/C++ to write functions which using 'iret' to return to 
 ; callers. that's the reason we are writing those intr_?_entry.
 
 section .data
 
-; declare intr_entry_table as 'global'
-global intr_entry_table
+; declare isr_tbl as 'global'
+global isr_tbl
 
-; intr_entry_table saves all interrupt handlers
+; isr_tbl saves all ISRs
 ; it's just a table filled with 'function pointers'
-intr_entry_table:
-%macro INTR_VECTOR 2
+isr_tbl:
+%macro MAKE_ISR 2
 
 ; code section
 section .text
-intr_%1_entry:
-    ; some interrupts have a parameter, others don't
+isr_%1:
+    ; some interrupt has a parameter (error code), others don't.
     ; we pad a dummy parameter if no parameter passed in
     ; to make stack aligned.
-    ; so, this %2 isn't always pushing a dummy parameter
+    ; this %2 isn't always pushing a dummy parameter
     %2          ; push first parameter #1
     push    ds
     push    es
@@ -43,25 +159,24 @@ intr_%1_entry:
     mov     al, 0x20 ; EOI(End of Interrupt) signal
     out     0xa0, al ; send to 8259A master port
     out     0x20, al ; send to 8259A slave port
-    ;mov     ebx, 0xb8000
-    ;mov     byte [ebx], 0x48
+
     push    %1 ; push second parameter
-    call    main_intr_handler
-    ; [idt_table + %1 * 4] ; call real interrupt handler
+
+    call    main_cxx_isr
 
     ; all entries share same exit code.
     jmp     intr_exit
 
-; we uglily defined intr_%1_entry here because we need to keep
+; we uglily defined isr_%1 here because we need to keep
 ; this code segment inside the macro.
 section .data
-    dd      intr_%1_entry ; interrupt entry point
+    dd      isr_%1 ; interrupt service routine
 %endmacro
 
 ; code section
 section     .text
 
-; all interrupt handlers share same exit code
+; all ISRs share same exit code
 global      intr_exit
 intr_exit:
     add     esp, 4 ; pop second parameter
@@ -73,53 +188,53 @@ intr_exit:
     add     esp, 4 ; pop first parameter
     iret
 
-; use macros to define interrupt handlers
+; use macros to define ISRs
 ; those are not real handlers
-INTR_VECTOR 0x00,ZERO
-INTR_VECTOR 0x01,ZERO
-INTR_VECTOR 0x02,ZERO
-INTR_VECTOR 0x03,ZERO 
-INTR_VECTOR 0x04,ZERO
-INTR_VECTOR 0x05,ZERO
-INTR_VECTOR 0x06,ZERO
-INTR_VECTOR 0x07,ZERO 
-INTR_VECTOR 0x08,ERROR_CODE
-INTR_VECTOR 0x09,ZERO
-INTR_VECTOR 0x0a,ERROR_CODE
-INTR_VECTOR 0x0b,ERROR_CODE 
-INTR_VECTOR 0x0c,ZERO
-INTR_VECTOR 0x0d,ERROR_CODE
-INTR_VECTOR 0x0e,ERROR_CODE
-INTR_VECTOR 0x0f,ZERO 
-INTR_VECTOR 0x10,ZERO
-INTR_VECTOR 0x11,ERROR_CODE
-INTR_VECTOR 0x12,ZERO
-INTR_VECTOR 0x13,ZERO 
-INTR_VECTOR 0x14,ZERO
-INTR_VECTOR 0x15,ZERO
-INTR_VECTOR 0x16,ZERO
-INTR_VECTOR 0x17,ZERO 
-INTR_VECTOR 0x18,ERROR_CODE
-INTR_VECTOR 0x19,ZERO
-INTR_VECTOR 0x1a,ERROR_CODE
-INTR_VECTOR 0x1b,ERROR_CODE 
-INTR_VECTOR 0x1c,ZERO
-INTR_VECTOR 0x1d,ERROR_CODE
-INTR_VECTOR 0x1e,ERROR_CODE
-INTR_VECTOR 0x1f,ZERO 
-INTR_VECTOR 0x20,ZERO ; timer
-INTR_VECTOR 0x21,ZERO ; keyboard
-INTR_VECTOR 0x22,ZERO ; cascade
-INTR_VECTOR 0x23,ZERO ; serial port 2
-INTR_VECTOR 0x24,ZERO ; serial port 1
-INTR_VECTOR 0x25,ZERO ; parallel port 2
-INTR_VECTOR 0x26,ZERO ; floppy
-INTR_VECTOR 0x27,ZERO ; parallel port 1
-INTR_VECTOR 0x28,ZERO ; real time clock
-INTR_VECTOR 0x29,ZERO ; redirect
-INTR_VECTOR 0x2a,ZERO ; reserved
-INTR_VECTOR 0x2b,ZERO ; reserved
-INTR_VECTOR 0x2c,ZERO ; ps/2
-INTR_VECTOR 0x2d,ZERO ; fpu exception
-INTR_VECTOR 0x2e,ZERO ; hard disk
-INTR_VECTOR 0x2f,ZERO ; reserved
+MAKE_ISR 0x00,ZERO
+MAKE_ISR 0x01,ZERO
+MAKE_ISR 0x02,ZERO
+MAKE_ISR 0x03,ZERO 
+MAKE_ISR 0x04,ZERO
+MAKE_ISR 0x05,ZERO
+MAKE_ISR 0x06,ZERO
+MAKE_ISR 0x07,ZERO 
+MAKE_ISR 0x08,ERROR_CODE
+MAKE_ISR 0x09,ZERO
+MAKE_ISR 0x0A,ERROR_CODE
+MAKE_ISR 0x0B,ERROR_CODE 
+MAKE_ISR 0x0C,ZERO
+MAKE_ISR 0x0D,ERROR_CODE
+MAKE_ISR 0x0E,ERROR_CODE
+MAKE_ISR 0x0F,ZERO 
+MAKE_ISR 0x10,ZERO
+MAKE_ISR 0x11,ERROR_CODE
+MAKE_ISR 0x12,ZERO
+MAKE_ISR 0x13,ZERO 
+MAKE_ISR 0x14,ZERO
+MAKE_ISR 0x15,ZERO
+MAKE_ISR 0x16,ZERO
+MAKE_ISR 0x17,ZERO 
+MAKE_ISR 0x18,ERROR_CODE
+MAKE_ISR 0x19,ZERO
+MAKE_ISR 0x1A,ERROR_CODE
+MAKE_ISR 0x1B,ERROR_CODE 
+MAKE_ISR 0x1C,ZERO
+MAKE_ISR 0x1D,ERROR_CODE
+MAKE_ISR 0x1E,ERROR_CODE
+MAKE_ISR 0x1F,ZERO 
+MAKE_ISR 0x20,ZERO ; timer
+MAKE_ISR 0x21,ZERO ; keyboard
+MAKE_ISR 0x22,ZERO ; cascade
+MAKE_ISR 0x23,ZERO ; serial port 2
+MAKE_ISR 0x24,ZERO ; serial port 1
+MAKE_ISR 0x25,ZERO ; parallel port 2
+MAKE_ISR 0x26,ZERO ; floppy
+MAKE_ISR 0x27,ZERO ; parallel port 1
+MAKE_ISR 0x28,ZERO ; real time clock
+MAKE_ISR 0x29,ZERO ; redirect
+MAKE_ISR 0x2A,ZERO ; reserved
+MAKE_ISR 0x2B,ZERO ; reserved
+MAKE_ISR 0x2C,ZERO ; ps/2
+MAKE_ISR 0x2D,ZERO ; fpu exception
+MAKE_ISR 0x2E,ZERO ; hard disk
+MAKE_ISR 0x2F,ZERO ; reserved

@@ -228,28 +228,17 @@ void pic8259a::init()
 }
 
 
-void main_intr_handler(uint32_t no) {
-    dbg_msg("x");
+void main_cxx_isr(uint32_t no) {
+    ASSERT(no < interrupt<x86_asm>::IDT_ENT_CNT);
+    
+    auto han = interrupt<x86_asm>::s_isrs[no];
+
+    if(han != nullptr) {
+        han(no);
+    }
 }
 
 template<typename T>
-interrupt<T>::handler
-interrupt<T>::s_handlers[interrupt<T>::IDT_ENT_CNT];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+interrupt<T>::isr_t
+interrupt<T>::s_isrs[interrupt<T>::IDT_ENT_CNT];
 

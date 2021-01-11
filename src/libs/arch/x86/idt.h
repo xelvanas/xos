@@ -4,11 +4,8 @@
 #include <bit.h>
 #include <debug.h>
 
-extern void* intr_entry_table[0x30];
-extern "C" void main_intr_handler(uint32_t num);
-
-// #define IDT_DESC_CNT 0x30 // 48
-
+extern void* isr_tbl[0x30];
+extern "C" void main_cxx_isr(uint32_t num);
 
 class pic8259a
 {
@@ -167,20 +164,22 @@ template<typename isa>
 class interrupt
 {
 public:
-    typedef void (*handler)(uint32_t no);
+    typedef void (*isr_t)(uint32_t no);
     enum 
     {
         // idt entry count 
-        IDT_ENT_CNT = 0x30
+        IDT_ENT_CNT  = 0x30,
+        GDT_CODE_SEG = 0x08,
+        IDT_TYPE     = 0b01110
     };
-    static handler s_handlers[IDT_ENT_CNT];
+    static isr_t s_isrs[IDT_ENT_CNT];
 public:
     static void init(gate_desc_t* ent, uint32_t len) {
         
         for(uint32_t i = 0;i < len; ++i) {
-            ent[i].initialize((uint32_t)intr_entry_table[i],
-                              0x08,
-                              0b01110,
+            ent[i].initialize((uint32_t)isr_tbl[i],
+                              GDT_CODE_SEG,
+                              IDT_TYPE,
                               0);
         }
 
@@ -188,7 +187,14 @@ public:
             (uint16_t)(sizeof(gate_desc_t)*len - 1),
             (uint32_t)ent
         };
-
         x86_asm::load_idt(&desc);
+    }
+
+    static bool reg(uint32_t vct, isr_t han) {
+        if(vct < IDT_ENT_CNT) {
+            s_isrs[vct] = han;
+            return true;
+        }
+        return true;
     }
 };

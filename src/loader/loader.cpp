@@ -39,7 +39,7 @@
 #include <debug.h>
 #include <timer.h>
 #include <memory.h>
-
+#include <thread.h>
 /* 
  * In normal situations, compiler and standard libs did a lot of jobs
  * for us. for example: we can pass parameters to a command line, then
@@ -163,13 +163,13 @@ int main() {
         (uint32_t)addr,
         color_t::F_LIGHT_GREEN);
     uint32_t* ptr = (uint32_t*)addr;
-    ptr[0] = 0x12345678;
-    ptr[1] = 0xc0dec4fe;
-    // pic8259a::init();
+
+    pic8259a::init();
     // dbg_hex(pic8259a::get_master_imr()); dbg_ln();    
-    // interrupt<x86_asm>::init((gate_desc_t*)0x8000, 0x30);
-    // auto_intr<x86_asm> aintr(true);
-    // pic8259a::enable(pic8259a::DEV_TIMER);
+    interrupt<x86_asm>::init((gate_desc_t*)0x8000, 0x30);
+    task_mgr::init();
+    auto_intr<x86_asm> aintr(true);
+    pic8259a::enable(pic8259a::DEV_TIMER);
     // dbg_hex(pic8259a::get_master_imr()); dbg_ln();
     // pit8253::freq(4000);
 

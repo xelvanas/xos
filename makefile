@@ -13,8 +13,6 @@ RM        := rm -rf
 # --------------------------------
 
 
-
-
 # --------------------------------
 # Default C Compiler Flags
 CFLAGS    = -m32#                 # Generate 32-bit code.
@@ -103,7 +101,6 @@ BOOT        := $(BLDIR)/$(BTNAME).bin
 
 $(BOOT): $(BTROOT)/$(BTNAME).s
 	@mkdir -p $(dir $@)
-
 	nasm -f bin $< -o $@
 # End of BOOT.bin
 # ----------------------------------------------------------------------------
@@ -132,14 +129,13 @@ LBSRCS       := $(shell find $(LBROOT) -name *.cpp)
 LBASMS       := $(shell find $(LBROOT) -name *.s)
 
 # Lib Assembler Objects
-LBAOBJS    := $(LBASMS:./src/%.s=$(BLDIR)/%.o)
+LBAOBJS      := $(LBASMS:./src/%.s=$(BLDIR)/%.o)
 
 # Lib Objects
 LBOBJS       := $(LBSRCS:./src/%.cpp=$(BLDIR)/%.o)
 
 # Lib Include Flags
 LBINCS       := $(addprefix -I,$(LBDIRS)) #$(addprefix -I,$(LBDIRS))
-
 
 $(filter %.o,$(LBAOBJS)):./build/%.o: $(SRCDIR)/%.s
 	@mkdir -p $(dir $@)
@@ -148,6 +144,7 @@ $(filter %.o,$(LBAOBJS)):./build/%.o: $(SRCDIR)/%.s
 $(filter %.o,$(LBOBJS)):./build/%.o: $(SRCDIR)/%.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(LBINCS) $(CXXFLAGS) $< -o $@
+
 # End of Common LIBs
 # ----------------------------------------------------------------------------
 
