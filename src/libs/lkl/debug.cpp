@@ -45,7 +45,7 @@ void dbg_hex(uint32_t val, uint8_t col) {
     print.hex(val);
     print.set_default_color(old);
 }
-void dbg_num(uint32_t val, uint8_t col = 0x07) {
+void dbg_num(uint32_t val, uint8_t col) {
     color_t old = print.set_default_color(col);
     print.show(val);
     print.set_default_color(old);

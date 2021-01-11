@@ -3,101 +3,77 @@
 #include <debug.h>
 
 ns_lite_kernel_lib_begin
-
 template<typename bits_t>
 class bitmap_t
 {
 private:
-    uint32_t    _len;     // how many 'bits_t' _buf has
-    bits_t*     _buf;     // buffer
-public:
-    class result_t
-    {
-    public:
-        bool     _val;
-        uint32_t _1st_fit;
-        uint32_t _1st_unfit;
-
-        result_t(bool val) :
-            _val(val),
-            _1st_fit(INVALID_INDEX),
-            _1st_unfit(INVALID_INDEX)
-        {
-
-        }
-
-        bool both_valid() const {
-            return _1st_fit   != INVALID_INDEX &&
-                   _1st_unfit != INVALID_INDEX;
-        }
-
-        bool both_invalid() const {
-            return _1st_fit   == INVALID_INDEX &&
-                   _1st_unfit == INVALID_INDEX;
-        }
-
-        bool is_fit_valid() const {
-            return _1st_fit == INVALID_INDEX;
-        }
-
-        bool is_unfit_valid() const {
-            return _1st_unfit == INVALID_INDEX;
-        }
-    };
+    bits_t*  _buf      = nullptr; // buffer
+    uint32_t _size     = 0;       // how many 'bits_t' _buf has
+    uint32_t _bit_size = 0;       // bit size of buffer
+    uint32_t _limit    = 0;       // bit limit, range (0, _bit_size)
 
 public:
     enum
     {
-        BIT_LENGTH      = sizeof(bits_t) * 8,
-        BIT_SUPREMUM    = BIT_LENGTH - 1,
-        BIT_INFIMUM     = 0,
-        MAX_VALUE       = ~((bits_t)0),
-        INVALID_INDEX   = ~((uint32_t)0)
+        BIT_LENGTH    = sizeof(bits_t) * 8,
+        BIT_SUPREMUM  = BIT_LENGTH - 1,
+        BIT_INFIMUM   = 0,
+        MAX_VALUE     = ~((bits_t)0),
+        INVALID_INDEX = ~((uint32_t)0)
     };
 
-    bitmap_t() :
-        _buf(nullptr),
-        _len(0)
-    {
-
-    }
+    // default constructor
+    bitmap_t() {}
 
     // not support len > 0x1FFFFFFF
     // cuz max value of uint32_t is 0xFFFFFFFF
     bitmap_t(bits_t* buf, uint32_t len) :
         _buf(buf),
-        _len(len)
+        _size(len),
+        _bit_size(len*BIT_LENGTH),
+        _limit(_bit_size)
     {
 
     }
 
     void reset(bits_t* buf, uint32_t len) {
-        _buf = buf;
-        _len = len;
+        _buf      = buf;
+        _size     = len;
+        _bit_size = len * BIT_LENGTH;
+        _limit    = _bit_size;
     }
 
-    uint32_t total_bits() const {
-        return _len * sizeof(bits_t) * 8;
+    uint32_t size() const {
+        return _size;
     }
 
+    uint32_t bit_size() const {
+        return _bit_size;
+    }
+
+    bool limit(uint32_t limit) {
+        if(limit >= 0 && limit <= bit_size()) {
+            _limit = limit;
+            return true;
+        }
+        return false;
+    }
+
+    uint32_t limit() const {
+        return _limit;
+    }
 
     bits_t mask(uint32_t idx) const {
         return (bits_t)1 << (idx % BIT_LENGTH);
     }
 
     bool test(uint32_t idx, bool val = true) const {
+        // dbg_mhl("idx:", (uint32_t)idx);
+        // dbg_mhl("total:", (uint32_t)bit_size());
+        // error index
+        ASSERT(idx < bit_size() && "error idx value.");
 
-        dbg_mhl("idx:", (uint32_t)idx);
-        dbg_mhl("total:", (uint32_t)total_bits());
-        ASSERT(idx < total_bits() && "error idx value.");
-
-        if (idx >= total_bits()) {
-            // will use 'ASSERT' instead or throw an exception once 
-            // we support 
-            return false;
-        }
-
-        return ((_buf[idx/BIT_LENGTH] & mask(idx)) != 0) == val;
+        return ((_buf[idx / BIT_LENGTH] & mask(idx)) != 0) == val;
     }
 
     // the units of 'idx' and 'len' are 'bit'
@@ -111,7 +87,7 @@ public:
 
     // set _buf[idx] = val
     void set(uint32_t idx, bool val) {
-        if (idx >= total_bits()) {
+        if (idx >= bit_size()) {
             return;
         }
         auto& elem = _buf[idx / BIT_LENGTH];
@@ -120,12 +96,12 @@ public:
 
     // set _buf[idx] -> _buf[idx+len] = val
     void set(uint32_t idx, uint32_t len, bool val) {
-        if (idx >= total_bits()) {
+        if (idx >= bit_size()) {
             return;
         }
 
-        if (idx + len > total_bits()) {
-            len = total_bits() - idx;
+        if (idx + len > bit_size()) {
+            len = bit_size() - idx;
         }
 
         uint32_t end = idx + len;
@@ -144,68 +120,103 @@ public:
         }
     }
 
-    // find a specific value from range
-    result_t find(uint32_t start, uint32_t end, bool val)
+    uint32_t count(uint32_t start, uint32_t len, bool val)
     {
-        result_t rst(val);
-        for (; start < end; ++start) {
+        if(start  >= limit())
+            return 0;
 
-            if (test(start, val)) {
-                if (rst._1st_fit == INVALID_INDEX) {
-                    rst._1st_fit = start;
-                }
-            } else {
-                if (rst._1st_unfit == INVALID_INDEX) {
-                    rst._1st_unfit = start;
-                }
-            }
-
-            if (rst._1st_unfit != INVALID_INDEX &&
-                rst._1st_fit   != INVALID_INDEX) {
-                break;
+        auto end = start+len > limit() ? limit() : start+len;
+        uint32_t n = 0;
+        for(start; start < end; ++start) {
+            if(test(start,val)) {
+                ++n;
             }
         }
-        return rst;
+        return n;
+    }
+
+    uint32_t count(bool val, uint32_t cnt = 0xFFFF'FFFF)
+    {
+        bits_t   full =  val ? MAX_VALUE : 0;
+        bits_t   empt =  ~full; 
+        uint32_t tail =  limit() % BIT_LENGTH;
+        uint32_t rsz  = (limit() + BIT_SUPREMUM) / BIT_LENGTH;
+        uint32_t num  =  0;
+
+        for(uint32_t idx = 0; idx < rsz; ++idx) {
+            if(_buf[idx] == full) {
+                num += BIT_LENGTH;
+            } else if (_buf[idx] == empt) {
+                continue;
+            } else {
+                num += count(idx*BIT_LENGTH, BIT_LENGTH, val);
+            }
+
+            if(num >= cnt) {
+                return num;
+            }
+        }
+        num += count(limit() - tail, limit(), val);
+        return num;
     }
 
     // find contiguous values in range
     uint32_t find(uint32_t start, uint32_t end, bool val, uint32_t len)
     {
-        uint32_t ridx = roughly_find(start, end, val);
-        if (ridx == INVALID_INDEX) {
-            return INVALID_INDEX;
-        }
+        // cannot search beyond '_limit'
+        end = end > limit() ? limit() : end;
 
-        if (ridx * BIT_LENGTH > start) {
-            start = ridx * BIT_LENGTH;
-        }
-        uint32_t ed = (ridx + 1) * BIT_LENGTH + len;
-        ed = ed < end ? ed : end;
-
-        // want one, searched many
-        // WILL OPTIMIZE LATER
-        auto rst = find(start, ed, val);
-
-        if (rst._1st_fit != INVALID_INDEX)
+        while (start < end)
         {
-            if (rst._1st_unfit < rst._1st_fit) {
-                return find(rst._1st_fit, end, val, len);
+            uint32_t idx = roughly_find(start, end, val);
+            if (idx == INVALID_INDEX) {
+                return INVALID_INDEX;
             }
-            ed = rst._1st_unfit == INVALID_INDEX ?
-                 ed : rst._1st_unfit;
 
-            if (ed - rst._1st_fit >= len)
-            {
-                return rst._1st_fit;
+            if (idx * BIT_LENGTH > start) {
+                start = idx * BIT_LENGTH;
             }
+
+            uint32_t ed  = (idx + 1) * BIT_LENGTH + len;
+                     ed  = ed < end ? ed : end;
+
+            uint32_t fit = INVALID_INDEX;
+            uint32_t n   = 0;
+
+            for (;start < ed; ++start) {
+
+                if (test(start, val)) {
+                    if (fit == INVALID_INDEX) {
+                        fit = start;
+                    }
+                    if (++n == len) {
+                        // we found enough bits
+                        return fit;
+                    }
+                }
+                else if (fit != INVALID_INDEX) {
+                    fit = INVALID_INDEX; // first unfit
+                    n   = 0; // count reset
+                }
+            }
+            start = (idx + 1) * BIT_LENGTH;
         }
-        return find(ed, end, val, len);
+        return INVALID_INDEX;
     }
 
     // skip those 0xFFFF/0x0000 to save time
     uint32_t roughly_find(uint32_t start, uint32_t end, bool val = true) {
         start /= BIT_LENGTH;
         end   /= BIT_LENGTH;
+        if(start >= _size) {
+            return INVALID_INDEX;
+        }
+
+        // real size
+        uint32_t rsz = (limit() + BIT_SUPREMUM) / BIT_LENGTH;
+
+        end = end > rsz ? rsz : end;
+
         bits_t full = val ? 0 : MAX_VALUE;
 
         while (start < end) {

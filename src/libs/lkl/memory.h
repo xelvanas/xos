@@ -1,6 +1,9 @@
 #pragma once
 #include <lkl.h>
 #include <bitmap.h>
+#include <pool.h>
+#include <x86/paging.h>
+#include <string.h>
 
 /*
  * Real Mode Address Space (less than 1 MByte)
@@ -125,39 +128,32 @@
 
 ns_lite_kernel_lib_begin
 
-class mem_pool
-{
-private:
-    bitmap_t<uint8_t> _bmp;
-    uint32_t          _start_addr;
-public:
-    enum
-    {
-        PAGE_SIZE = 0x1000, // 4K one page
-    };
+// class phys_mem_mgr
+// {
+// private:
+//     pool_t _kp_pool;
+// public:
+//     void init()
 
-    bool init(
-        void*     buf,
-        uint32_t  bufsz,
-        uint32_t  addr,
-        uint32_t  len);
-    
-    void* alloc(uint32_t cnt);
-    void  free(void* addr, uint32_t cnt);
-};
+// };
 
 class mem_mgr
 {
 private:
-    static mem_pool _kp_pool;
-    static mem_pool _kv_pool;
+    static pool_t _kp_pool;
+    static pool_t _kv_pool;
 private:
     enum
     {
+        PAGE_SIZE        = 0x1000,
         KER_P_BMP_BUF    = 0x0800,
         KER_V_BMP_BUF    = 0x1800,
         USR_P_BMP_BUF    = 0x2800,
         USR_V_BMP_BUF    = 0x3800,
+        KER_V_ADDR_START = 0xC000'0000, // kernel starting virtual addr
+        USR_V_ADDR_START = 0x0100'0000, // user starting virtual addr
+        PTE_BOUNDARY     = 0x0040'0000, // each PTE maps 4MB
+        PTE_RANGE_MASK   = ~(0x0040'0000-1),
     };
 public:
 
@@ -175,9 +171,42 @@ private:
     // creating an instance is disallowed.
     mem_mgr() {}
 
+    static inline uint32_t
+    __inner_detect_unallocated_pte(
+        uint32_t vbeg,
+        uint32_t vend);
+
+    static inline pde_t*
+    __inner_get_pde_v(uint32_t vaddr) {
+        // 1. point twice PDE start
+        // 2. add PDE offset * 4 (each index occupies 4 bytes)
+        return (pde_t*)((0xfffff000) + 
+        (pde_t::get_pde_index(vaddr)<<2));
+    }
+
+    static inline pte_t*
+    __inner_get_pte_v(uint32_t vaddr) {
+        return (pte_t*)(0xffc00000 + // point to PDE:1023
+        ((vaddr & 0xffc00000) >> 10) + // PDE as PTE (to locate PDE)
+        (pte_t::get_pte_index(vaddr) << 2)); // real PTE offset
+    }
+
+    static inline void
+    __inner_map_virtual_on_phys(
+        uint32_t vaddr,
+        uint32_t paddr);
+
+    static void*
+    __inner_alloc_pages(
+        pool_t&  mpool,
+        pool_t&  vpool,
+        uint32_t cnt);
+
     // len = 0 if failed
     static void
-    __inner_detect_valid_mem(uint32_t& addr, uint32_t& len);
+    __inner_detect_valid_mem(
+        uint32_t& addr,
+        uint32_t& len);
 };
 
 

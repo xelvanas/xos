@@ -4,87 +4,12 @@
 
 ns_lite_kernel_lib_begin
 
-//---------------------------------------------------------------------------
-// Memory Pool
-
-bool mem_pool::init(
-    void*    buf,
-    uint32_t bufsz,
-    uint32_t addr,
-    uint32_t len)
-{
-    if(buf   == nullptr ||
-       bufsz == 0       ||
-       len   == 0)
-    {
-        return false;
-    }
-
-    // dbg_mhl("buf:",   (uint32_t)buf);
-    // dbg_mhl("bufsz:", (uint32_t)bufsz);
-
-    // dbg_mhl("addr:", (uint32_t)addr);
-    // dbg_mhl("len:",  (uint32_t)len);
-    // while(1);
-
-
-    // bit count
-    uint32_t nbits = bufsz * _bmp.BIT_LENGTH;
-    
-    // page count
-    uint32_t npgs  = len / PAGE_SIZE;
-
-    // page count > bit count
-    // bitmap cannot map whole memory area
-    // init failed.
-    if(npgs > nbits) {
-        return false;
-    }
-
-    // round it up
-    nbits = npgs + _bmp.BIT_SUPREMUM;
-
-    // cut extra buf off to prevent bitmap from looking into
-    // meaningless block.
-    _bmp.reset((uint8_t*) buf, nbits/_bmp.BIT_LENGTH);
-
-    // mark rest bit used.
-    _bmp.set(npgs, _bmp.total_bits() - npgs, true);
-
-    _start_addr = addr;
-    return true;
-}
-
-void* mem_pool::alloc(uint32_t cnt)
-{
-    uint32_t idx = _bmp.find(0, _bmp.total_bits(), false, cnt);
-    if(idx != _bmp.INVALID_INDEX) {
-        _bmp.set(idx, cnt, true);
-        return (void*)(_start_addr + idx * PAGE_SIZE);
-    }
-    return nullptr;    
-}
-
-void mem_pool::free(void* addr, uint32_t cnt)
-{
-    // address out of range
-    if((_start_addr > (uint32_t)addr) ||
-       (_start_addr + _bmp.total_bits() * PAGE_SIZE < (uint32_t)addr))
-    {
-        return;
-    }
-    uint32_t idx = ((uint32_t)addr - _start_addr)/PAGE_SIZE;
-    _bmp.set(idx, cnt, false);
-}
-//
-//---------------------------------------------------------------------------
-
-
+// pool_t phys_mem_mgr::_kp_pool;
 
 //---------------------------------------------------------------------------
 // Memory Manager
-mem_pool mem_mgr::_kp_pool;
-mem_pool mem_mgr::_kv_pool;
+pool_t mem_mgr::_kp_pool;
+pool_t mem_mgr::_kv_pool;
 
 void mem_mgr::init()
 {
@@ -115,15 +40,35 @@ void mem_mgr::init()
      * Notice:
      * 'LOADER' already loaded at 0x00300000-0x003FFFFF
      */
-    uint32_t mem_size   = phsy_size/2 - (0x00400000 - phys_addr);
-    uint32_t start_addr = 0x00400000;
+    uint32_t mem_size   = phsy_size/2;
+    uint32_t start_addr = phys_addr;
+
     memset((void*)KER_P_BMP_BUF, 0, 0x1000);
 
     _kp_pool.init(
-        (void*)KER_P_BMP_BUF,
-        0x1000,
-        start_addr,
-        mem_size);
+        (void*)KER_P_BMP_BUF, // bitmap buffer (physical address)
+        PAGE_SIZE,            // bitmap buffer size (1 page)
+        start_addr,           // physical memory starting address
+        mem_size              // physical memory size
+    );
+
+    // tell _kp_pool that first 16MB has been identity-mapped in 
+    // 'enable_paging' and first 1MB doesn't count in kernel pool,
+    // it's a different memory segment.
+    // (4096-256) = 3840 = 0xF00
+    // 3840 * 4K  = 15MB
+    auto addr = _kp_pool.alloc(0xF00);
+    ASSERT((uint32_t)addr == start_addr);
+    
+    _kv_pool.init(
+        (void*)KER_V_BMP_BUF, // bitmap buffer
+        PAGE_SIZE,            // bitmap buffer size
+        KER_V_ADDR_START,     // starting kernel virtual address
+        mem_size              // same as physical memory size
+    );
+
+    addr = _kv_pool.alloc(0x1000);
+    ASSERT((uint32_t)addr == KER_V_ADDR_START);
 }
 
 void* mem_mgr::alloc(page_type_t pt, uint32_t cnt)
@@ -131,13 +76,91 @@ void* mem_mgr::alloc(page_type_t pt, uint32_t cnt)
     if(cnt == 0)
         return nullptr;
 
-    if(pt == PT_KERNEL)
-    {
-        return _kp_pool.alloc(cnt);
+    if(pt == PT_KERNEL) {
+        return __inner_alloc_pages(_kp_pool, _kv_pool, cnt);
+    } else {
+        // allocate user memory
     }
     return nullptr;
 }
 
+uint32_t mem_mgr::__inner_detect_unallocated_pte(
+        uint32_t vf, // first 
+        uint32_t vl) // last
+{
+    vf =  vf & PTE_RANGE_MASK;
+    vl = (vl + PTE_BOUNDARY) & PTE_RANGE_MASK;
+    uint32_t num = 0;
+    pde_t*   pde = nullptr;
+    for(;vf < vl;) {
+        pde = __inner_get_pde_v(vf);
+        if(!pde->present()) {
+            ++num;
+        }
+        vf += PTE_BOUNDARY;
+    }
+    return num;
+}
+
+void mem_mgr::__inner_map_virtual_on_phys(
+    uint32_t vaddr,
+    uint32_t paddr)
+{
+    auto pde = __inner_get_pde_v(vaddr);
+    if(pde->present() == false) {
+        // always use kernel pool to allocate PTE memory
+        auto pg = _kp_pool.alloc(1);
+        ASSERT(pg != 0 && "error: cannot allocate physical memory");
+        memset(pg, 0, PAGE_SIZE);
+        pde->address((uint32_t)pg);
+        pde->present(true);
+        pde->ro(false);
+        // note: cannot use physical address (pg) to access pte directly
+    }
+    auto pte = __inner_get_pte_v(vaddr);
+    pte->present(true);
+    pte->address(paddr);
+    pte->present(true);
+}
+
+void* mem_mgr::__inner_alloc_pages(
+    pool_t& mpool,
+    pool_t& vpool,
+    uint32_t cnt)
+{
+    uint32_t vaddr = (uint32_t)vpool.alloc(cnt);
+    
+    uint32_t pgs   = 
+    __inner_detect_unallocated_pte(
+        vaddr,
+        vaddr + (cnt-1) * PAGE_SIZE
+    );
+
+    if(&mpool == &_kp_pool) {
+        // allocating kernel memory
+        if(_kp_pool.free_pg_cnt() < cnt + pgs) {
+            // not enough memory to allocate
+            vpool.free((void*)vaddr, cnt);
+            return nullptr;
+        }
+    } else {
+        // allocating user memroy
+        if(_kp_pool.free_pg_cnt() < pgs ||
+           mpool.free_pg_cnt()    < cnt) 
+        {
+            vpool.free((void*)vaddr, cnt);
+            return nullptr;
+        }
+    }
+
+    // physical address
+    uint32_t paddr = 0; 
+    for(uint32_t idx = 0; idx < cnt; ++idx) {
+        paddr = (uint32_t)mpool.alloc(1);
+        __inner_map_virtual_on_phys(vaddr, paddr);
+    }
+    return (void*)vaddr;
+}
 
 void mem_mgr::__inner_detect_valid_mem(
     uint32_t& addr,

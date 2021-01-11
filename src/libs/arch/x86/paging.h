@@ -238,6 +238,16 @@ public:
         *(uint32_t*)this = val;
         return *this;
     }
+
+    static inline uint32_t
+    get_pde_index(uint32_t addr) {
+        return ((addr & 0xffc00000) >> 22);
+    }
+
+    static inline uint32_t
+    get_pte_index(uint32_t addr) {
+        return ((addr & 0x003ff000) >> 12);
+    }
 };
 
 // page entry array
@@ -307,8 +317,8 @@ public:
 };
 
 // aliases
-using pde_t = pge_t;
-using pte_t = pge_t;
+using pde_t      = pge_t;
+using pte_t      = pge_t;
 using page_dir_t = pea_t;
 using page_tbl_t = pea_t;
 

@@ -158,10 +158,13 @@ int main() {
     mem_mgr::init();
 
     auto addr = mem_mgr::alloc(mem_mgr::PT_KERNEL, 1);
-    dbg_msg("alloc:");
-    dbg_hex((uint32_t)addr);
-    dbg_ln();
-
+    dbg_mhl(
+        "kernel pool allocated:",
+        (uint32_t)addr,
+        color_t::F_LIGHT_GREEN);
+    uint32_t* ptr = (uint32_t*)addr;
+    ptr[0] = 0x12345678;
+    ptr[1] = 0xc0dec4fe;
     // pic8259a::init();
     // dbg_hex(pic8259a::get_master_imr()); dbg_ln();    
     // interrupt<x86_asm>::init((gate_desc_t*)0x8000, 0x30);
