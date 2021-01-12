@@ -3,7 +3,6 @@
 
 ns_lite_kernel_lib_begin
 
-
 template<typename T> class queue_t;
 
 template<typename T>
@@ -45,6 +44,11 @@ public:
     bool alone() const {
         return _prev == nullptr &&
                _next == nullptr;
+    }
+
+    void leave() {
+        _prev = nullptr;
+        _next = nullptr;
     }
 };
 
@@ -115,6 +119,7 @@ public:
             node* tmp = _head;
             _head = nullptr;
             _tail = nullptr;
+            tmp->leave();
             return tmp;
         } else {
             node* tmp = _head;
@@ -129,6 +134,7 @@ public:
                 _head = _head->_next;
                 _head->_prev = nullptr;
             }
+            tmp->leave();
             return tmp;
         }
     }
@@ -171,6 +177,7 @@ public:
                 _tail = _tail->_prev;
                 _tail->_next = nullptr;
             }
+            tmp->leave();
             return tmp;
         }
     }
@@ -210,8 +217,7 @@ public:
             else {
                 nd->_prev->_next = nd->_next;
                 nd->_next->_prev = nd->_prev;
-                nd->_next = nullptr;
-                nd->_prev = nullptr;
+                nd->leave();
             }
         }
     }

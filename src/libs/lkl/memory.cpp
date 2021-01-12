@@ -27,7 +27,7 @@ void mem_mgr::init()
      * mem_mgr already has 'ARDS' information, 0x0800 - 0x9F000 can 
      * be reused.
      * 
-     * kernel at least needs 4 pools:
+     * kernel needs at least 4 pools:
      * kernel physical memory pool: 0x0800 - 0x1800
      * kernel virtual address pool: 0x1800 - 0x2800
      * user   physical memory pool: 0x2800 - 0x3800

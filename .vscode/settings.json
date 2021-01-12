@@ -19,16 +19,16 @@
     },
     "editor.rulers": [
         {
-            "column": 73,
-            "color": "#9bff736b"
+            "column": 70,
+            "color": "#520FFF88"
         },
         {
             "column": 80,
-            "color": "#7f00d370"
+            "color": "#520FFF99"
         },
         {
-            "column": 90,
-            "color": "#ba00d380"
+            "column": 92,
+            "color": "#520FFFCC"
         },
     ]
 }

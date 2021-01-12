@@ -86,6 +86,11 @@ public:
         asm volatile("cli" : : : "memory");
     }
 
+    static inline bool
+    is_interrupt_on() {
+        return lkl::bit_test(x86_asm::get_eflags(), 0x0200);
+    }
+
     enum
     {
         CR0_PG   = 0x8000'0000, // Paging (bit 31)

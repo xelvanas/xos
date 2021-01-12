@@ -180,7 +180,7 @@ $(filter %.o,$(LOBJS)):./build/%.o: $(SRCDIR)/%.cpp
 	$(CXX) $(LBINCS) $(LINCS) $(CXXFLAGS)  $< -o $@
 
 # Generate Executable Loader
-$(LOADER): $(LOBJS) $(LBOBJS) $(LBAOBJS)
+$(LOADER): $(LOBJS) $(LBOBJS) $(LBAOBJS) ./build/libs/lkl/ts.o
 	$(LD) $(LDFLAGS) -T $(LROOT)/ldscript -o $@ $^
 
 # End of LOADER.bin

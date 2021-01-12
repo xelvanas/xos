@@ -141,6 +141,21 @@ void enable_paging(uint32_t addr) {
     //x86_asm::set_cr0(x86_asm::get_cr0() | 0x80000000);
 }
 
+void thread_a(void* arg) {
+    
+    while(1) {
+        dbg_msg("A ");
+    }
+}
+
+void thread_b(void* arg) {
+    
+    while(1) {
+        dbg_msg("B ");
+    }
+}
+
+
 int main() {
     // never move any code before invoke_global_ctors()
     // unless you know what you're doing.
@@ -165,14 +180,16 @@ int main() {
     uint32_t* ptr = (uint32_t*)addr;
 
     pic8259a::init();
-    // dbg_hex(pic8259a::get_master_imr()); dbg_ln();    
     interrupt<x86_asm>::init((gate_desc_t*)0x8000, 0x30);
     task_mgr::init();
     auto_intr<x86_asm> aintr(true);
     pic8259a::enable(pic8259a::DEV_TIMER);
-    // dbg_hex(pic8259a::get_master_imr()); dbg_ln();
     // pit8253::freq(4000);
+    task_mgr::begin_thread(thread_a, nullptr, "thA");
+    task_mgr::begin_thread(thread_b, nullptr, "thB");
 
-    while(1);
+    while(1) {
+        dbg_msg("main ");
+    }
     return 0;
 }

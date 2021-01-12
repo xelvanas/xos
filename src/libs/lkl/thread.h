@@ -2,8 +2,9 @@
 #include <lkl.h>
 #include <string.h>
 #include <queue.h>
-
+#include <debug.h>
 ns_lite_kernel_lib_begin
+
 // ------------------------- Low Mem Address ---------------------------
 // the order is from bottom (high mem address) to top (low mem addrss)
 // [U]:  marks 'user space only'
@@ -102,6 +103,8 @@ struct thread_stack
     uint32_t _arg;
 };
 
+
+// Process Control Block
 class pcb_t
 {
 private:
@@ -110,7 +113,8 @@ private:
     uint32_t       _prior;
     char           _name[16];
     uint32_t       _magic;
-    qnode_t<pcb_t> _node;
+    qnode_t<pcb_t> _rdq_node;
+    qnode_t<pcb_t> _alq_node;
 public:
     enum 
     {
@@ -161,24 +165,36 @@ public:
         return _magic;
     }
 
-    qnode_t<pcb_t>& get_qnode() {
-        return _node;
+    qnode_t<pcb_t>& get_rdq_node() {
+        return _rdq_node;
     }
 
-    const qnode_t<pcb_t>& get_qnode() const {
-        return _node;
+    const qnode_t<pcb_t>& get_rdq_node() const {
+        return _rdq_node;
+    }
+
+    qnode_t<pcb_t>& get_alq_node() {
+        return _alq_node;
+    }
+
+    const qnode_t<pcb_t>& get_alq_node() const {
+        return _alq_node;
     }
 };
 
+extern "C" void task_switch(pcb_t* cur, pcb_t* next);
+
+//
 class thread_t
 {
 private:
 
 public:
-    
-
 
 };
+
+typedef void (*thread_func)(void* arg);
+
 
 class task_mgr
 {
@@ -186,21 +202,25 @@ private:
     static uint32_t       s_states;
     static queue_t<pcb_t> s_ready_queue;
     static queue_t<pcb_t> s_all_queue;
-
 public:
     enum
     {
         TMS_INITIALIZED = 0x00000001,
         TMS_MAIN_THREAD = 0x00000002,
+        THREAD_MAGIC    = 0xdeaddead,
     };
 public:
-
     static void   init();
     
-    // this is an ISR for 'timer'
+    // 'scheduler' is an ISR for 'timer'
     static void   scheduler(uint32_t no);
     
     static pcb_t* current_pcb();
+
+    static void   begin_thread(
+        thread_func func,
+        void* arg,
+        const char* name);
 private:
     task_mgr() {};
 private:
