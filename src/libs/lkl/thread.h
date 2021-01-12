@@ -183,7 +183,7 @@ public:
 class task_mgr
 {
 private:
-    static uint32_t       s_task_mgr_states;
+    static uint32_t       s_states;
     static queue_t<pcb_t> s_ready_queue;
     static queue_t<pcb_t> s_all_queue;
 
