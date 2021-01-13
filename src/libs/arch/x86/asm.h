@@ -91,6 +91,15 @@ public:
         return lkl::bit_test(x86_asm::get_eflags(), 0x0200);
     }
 
+    static inline void
+    set_interrupt(bool intr) {
+        if(intr) {
+            turn_interrupt_on();
+        } else {
+            turn_interrupt_off();
+        }
+    }
+
     enum
     {
         CR0_PG   = 0x8000'0000, // Paging (bit 31)

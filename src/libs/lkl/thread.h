@@ -30,15 +30,15 @@ public:
 
     using tnode = qnode_t<thread_t>;
 private:
-    uint32_t    _tid;
     uint32_t*   _kstack;
+    uint32_t    _tid;
     state_t     _state;
     uint32_t    _base_prior;
     uint32_t    _prior;
     // name is not necessary, but could make debugging easier.
     char        _name[TH_NAME_LEN];
-    tnode       _rdyq_node;
-    tnode       _allq_node;
+    tnode       _node;
+    tnode       _anode;
 
     // _magic is the tcb keeper, should always be the last member
     // of thread_t.
@@ -99,23 +99,33 @@ public:
     }
 
     inline tnode&
-    rdyq_node() {
-        return _rdyq_node;;
+    node() {
+        return _node;;
     }
 
     inline const tnode&
-    rdyq_node() const {
-        return _rdyq_node;;
+    node() const {
+        return _node;;
+    }
+
+    inline tnode*
+    node_ptr() {
+        return &_node;;
     }
 
     inline tnode&
-    allq_node() {
-        return _allq_node;;
+    anode() {
+        return _anode;;
     }
 
     inline const tnode&
-    allq_node() const {
-        return _allq_node;;
+    anode() const {
+        return _anode;;
+    }
+
+    inline tnode*
+    anode_ptr() {
+        return &_anode;;
     }
 
     inline uint32_t

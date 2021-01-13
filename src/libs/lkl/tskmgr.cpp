@@ -142,14 +142,16 @@ task_mgr::init()
         task_mgr::scheduler);
 }
 
-thread_t* task_mgr::cur_thread() {
+thread_t* task_mgr::current_thread() {
     uint32_t esp = x86_asm::get_esp();
     return (thread_t*)(esp & thread_t::TH_MASK);
 }
 
-void task_mgr::scheduler(uint32_t no) {
+void 
+task_mgr::scheduler(uint32_t no) 
+{
 
-    auto cur = cur_thread();
+    auto cur = current_thread();
 
     // ASSERT(s_all_queue.find(&cur->get_alq_node()));
 
@@ -160,13 +162,12 @@ void task_mgr::scheduler(uint32_t no) {
 
     if(cur->is_running()) {
         cur->state(thread_t::TS_READY);
-        s_rdy_queue.push_back(&cur->rdyq_node());
+        s_rdy_queue.push_back(&cur->node());
     }
 
     auto node = s_rdy_queue.pop_front();
     (*node)->state(thread_t::TS_RUNNING);
     task_switch(cur, node->get());
-    dbg_msg("eh ");
 }
 
 bool
@@ -191,9 +192,6 @@ task_mgr::begin_thread(
          addr -= sizeof(intr_stack);
          addr -= sizeof(thread_stack);
 
-    // dbg_mhl("addr:", (uint32_t)addr);
-    // while(1);
-    
     // prepare task switching data
     auto ts    = (thread_stack*)addr;
     ts->_fun   = (uint32_t)func;
@@ -211,12 +209,34 @@ task_mgr::begin_thread(
     th->kstack((uint32_t*)addr);
     th->state(thread_t::TS_READY);
     
-    th->rdyq_node().reset(th);
-    th->allq_node().reset(th);
+    th->node().reset(th);
+    th->anode().reset(th);
     th->cast_magic();
-    s_rdy_queue.push_back(&th->rdyq_node());
-    s_all_queue.push_back(&th->allq_node());
+    s_rdy_queue.push_back(th->node_ptr());
+    s_all_queue.push_back(th->anode_ptr());
     return true;
+}
+
+void
+task_mgr::block_current_thread()
+{
+    ASSERT(x86_asm::is_interrupt_on() == false);
+    current_thread()->state(thread_t::TS_BLOCKED);
+    scheduler(0);
+}
+
+void
+task_mgr::unblock_thread(thread_t* th)
+{
+    ASSERT(
+        th != nullptr &&
+        th->is_magic_dashed() == false &&
+        th->is_blocked());
+
+    auto_intr<x86_asm> ai(false);
+    
+    th->state(thread_t::TS_READY);
+    s_rdy_queue.push_back(th->node_ptr());
 }
 
 // -----------------------------------------------------------------------
@@ -233,12 +253,13 @@ task_mgr::task_switch(
     );
 }
 
-void task_mgr::__inner_cur_thrd_as_main_thrd() {
+void
+task_mgr::__inner_cur_thrd_as_main_thrd() {
     // main thread initialized
     if(bit_test(s_states, TMS_MAIN_THREAD))
         return;
 
-    auto th = cur_thread();
+    auto th = current_thread();
     // it's a dangeous operation,  'esp' can be somewhere 
     // between 'pcb + sizeof(pcb_t)'.  :)
     ASSERT((uint32_t)th + sizeof(thread_t) < x86_asm::get_esp());
@@ -253,9 +274,9 @@ void task_mgr::__inner_cur_thrd_as_main_thrd() {
 
     th->state(thread_t::TS_RUNNING);
     th->cast_magic();
-    th->rdyq_node().reset(th);
-    th->allq_node().reset(th);
-    s_all_queue.push_back(&th->allq_node());
+    th->node().reset(th);
+    th->anode().reset(th);
+    s_all_queue.push_back(th->anode_ptr());
 }
 // 
 // -----------------------------------------------------------------------

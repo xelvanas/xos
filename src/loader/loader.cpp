@@ -40,6 +40,7 @@
 #include <timer.h>
 #include <memory.h>
 #include <tskmgr.h>
+#include <lock.h>
 
 /* 
  * In normal situations, compiler and standard libs did a lot of jobs
@@ -69,6 +70,8 @@ inline void invoke_global_ctors() {
 }
 
 using namespace lkl;
+
+lock_t g_screen_lock;
 
 void msg_welcome() {
 
@@ -145,27 +148,40 @@ void enable_paging(uint32_t addr) {
 void thread_a(void* arg) {
     
     while(1) {
-        dbg_msg("A ");
+        g_screen_lock.acquire();
+        dbg_msg("AAAA ");
+        g_screen_lock.release();
     }
 }
 
 void thread_b(void* arg) {
     
     while(1) {
-        dbg_msg("B ");
+        g_screen_lock.acquire();
+        dbg_msg("BBBB ");
+        g_screen_lock.release();
     }
 }
+
+class testauto
+{
+public:
+    testauto() {
+        dbg_msg("ctor\n");
+    }
+    ~testauto() {
+        dbg_msg("dtor\n");
+    }
+};
 
 
 int main() {
     // never move any code before invoke_global_ctors()
     // unless you know what you're doing.
     invoke_global_ctors();
-
-    // auto next = x86_asm::move_gdt_to((void*)0x0500, 0x7C00-0x0500);
-    // dbg_msg("next address: ");
-    // dbg_hex((uint32_t)next);
-    // dbg_ln();
+    {
+        testauto at;
+    }
 
     msg_welcome();
     enable_paging(0x00100000);
@@ -178,19 +194,23 @@ int main() {
         "kernel pool allocated:",
         (uint32_t)addr,
         color_t::F_LIGHT_GREEN);
+    
     uint32_t* ptr = (uint32_t*)addr;
 
     pic8259a::init();
     interrupt<x86_asm>::init((gate_desc_t*)0x8000, 0x30);
     task_mgr::init();
-    auto_intr<x86_asm> aintr(true);
+    x86_asm::turn_interrupt_on();
+    
     pic8259a::enable(pic8259a::DEV_TIMER);
-    // pit8253::freq(4000);
+    pit8253::freq(4000);
     task_mgr::begin_thread(thread_a, nullptr, "thA", 5);
     task_mgr::begin_thread(thread_b, nullptr, "thB", 10);
 
     while(1) {
+        g_screen_lock.acquire();
         dbg_msg("main ");
+        g_screen_lock.release();
     }
     return 0;
 }

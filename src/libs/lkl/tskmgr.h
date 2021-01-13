@@ -27,10 +27,10 @@ public:
     
     // 'scheduler' is an ISR for 'timer'
     static void
-    scheduler(uint32_t no);
+    scheduler(uint32_t no /*never used*/);
 
     static thread_t*
-    cur_thread();
+    current_thread();
     
     static bool
     begin_thread(
@@ -41,12 +41,18 @@ public:
     );
 
     static void
+    block_current_thread();
+
+    static void
+    unblock_thread(thread_t* th);
+
+protected:
+    static void
     task_switch(
         thread_t* cur,
         thread_t* next
     );
 
-protected:
     // a simple unique tid
     // should pray for OS will not create thread more than 0xFFFFFFFF
     // :-)
