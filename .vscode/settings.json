@@ -19,7 +19,7 @@
     },
     "editor.rulers": [
         {
-            "column": 70,
+            "column": 75,
             "color": "#520FFF88"
         },
         {

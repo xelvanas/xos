@@ -1,12 +1,12 @@
 [bits 32]
 section .text
-global task_switch
+global __task_switch
 ; task_switch(cur, next)
 ; those parameters are two PCBs
 ; and the first 4 bytes of a PCB is kernel stack pointer
 ; the default calling convention is 'cdecl' that means
 ; 'next' pushed first, then 'cur'.
-task_switch:
+__task_switch:
 ; why are we saving those 4 registers? 
 ; the most important reason is that we're in the middle of kernel code
 ; and we don't want to crash the kernel after 'switching'. according to

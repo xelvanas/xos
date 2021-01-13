@@ -1,5 +1,6 @@
 #pragma once
 #include <lkl.h>
+#include <debug.h>
 
 ns_lite_kernel_lib_begin
 
@@ -17,13 +18,13 @@ protected:
     // modifier and make 'queue_t' as a friend to limit access for outsiders.
     qnode_t* _prev = nullptr;
     qnode_t* _next = nullptr;
+    T*       _pobj;
 public:
     qnode_t() { }
     qnode_t(T* pobj) : _pobj(pobj) { }
 
     // since it's not a 'private/protected' member, we don't use prefix '_'
-    T* _pobj;
-
+    
 
     qnode_t* prev() {
         return _prev;
@@ -49,6 +50,28 @@ public:
     void leave() {
         _prev = nullptr;
         _next = nullptr;
+    }
+
+    T* get() const noexcept {
+        return _pobj;
+    }
+
+    void reset(T* pobj) {
+        _pobj = pobj;
+    }
+
+    explicit operator bool() const noexcept {
+        return _pobj != nullptr;
+    }
+
+    T& operator*() const noexcept {
+        ASSERT(_pobj != nullptr);
+        return *_pobj;
+    }
+
+    T* operator->() const noexcept {
+        ASSERT(_pobj != nullptr);
+        return _pobj;
     }
 };
 

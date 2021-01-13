@@ -39,7 +39,8 @@
 #include <debug.h>
 #include <timer.h>
 #include <memory.h>
-#include <thread.h>
+#include <tskmgr.h>
+
 /* 
  * In normal situations, compiler and standard libs did a lot of jobs
  * for us. for example: we can pass parameters to a command line, then
@@ -185,8 +186,8 @@ int main() {
     auto_intr<x86_asm> aintr(true);
     pic8259a::enable(pic8259a::DEV_TIMER);
     // pit8253::freq(4000);
-    task_mgr::begin_thread(thread_a, nullptr, "thA");
-    task_mgr::begin_thread(thread_b, nullptr, "thB");
+    task_mgr::begin_thread(thread_a, nullptr, "thA", 5);
+    task_mgr::begin_thread(thread_b, nullptr, "thB", 10);
 
     while(1) {
         dbg_msg("main ");

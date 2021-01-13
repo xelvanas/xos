@@ -187,6 +187,11 @@ intr_exit:
     pop     ds
     add     esp, 4 ; pop first parameter
     iret
+; Note that the iret instruction restores the state of EFLAGS before
+; the interrupt handler began, thus allowing further interrupts to
+; occur after the interrupt handler is complete.
+
+
 
 ; use macros to define ISRs
 ; those are not real handlers

@@ -235,6 +235,8 @@ void main_cxx_isr(uint32_t no) {
 
     if(han != nullptr) {
         han(no);
+    } else {
+        interrupt<x86_asm>::display_name(no);
     }
 }
 

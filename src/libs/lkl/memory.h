@@ -145,7 +145,6 @@ private:
 private:
     enum
     {
-        PAGE_SIZE        = 0x1000,
         KER_P_BMP_BUF    = 0x0800,
         KER_V_BMP_BUF    = 0x1800,
         USR_P_BMP_BUF    = 0x2800,
@@ -161,6 +160,11 @@ public:
     {
         PT_KERNEL   = 0,
         PT_USER     = 1,
+    };
+
+    enum
+    {
+        PAGE_SIZE        = 0x1000,
     };
 
     static void init();
