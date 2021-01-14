@@ -17,9 +17,15 @@ bit_ret(T r, U s, bool b) {
 }
 
 template<typename T, typename U>
-inline bool 
+inline bool
 bit_test(const T r, U s) {
     return (r & (T)s) != 0;
+}
+
+template<typename T, typename U>
+inline void
+bit_toggle(T& r, U s) {
+    bit_set(r, s, !bit_test(r, s));
 }
 
 ns_lite_kernel_lib_end

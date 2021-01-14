@@ -22,6 +22,7 @@ public:
      * synchronization primitives called 'P' and 'V'.
      * 'P' = dutch word 'Probeer' (try)
      * 'V' = dutch word 'Verhoog' (increment)
+     * verhogen
      */
 
     // 'P':down()

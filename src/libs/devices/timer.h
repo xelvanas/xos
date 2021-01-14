@@ -101,11 +101,11 @@ public:
         fq = fq == 0 ? 1 : fq;
         // write control word register: port 0x43
         x86_io::outb(
-            PIT_CTRL_PORT, 
+             PIT_CTRL_PORT, 
             (uint8_t)
             (PIT_CNTR0_PORT << 6 |
-            PIT_RW_LATCH    << 4 |
-            PIT_OPT_MODE    << 1));
+             PIT_RW_LATCH    << 4 |
+             PIT_OPT_MODE    << 1));
         
         uint16_t cnt = PIT_INPUT_FREQ / fq;
 

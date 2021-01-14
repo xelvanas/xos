@@ -240,7 +240,4 @@ void main_cxx_isr(uint32_t no) {
     }
 }
 
-template<typename T>
-interrupt<T>::isr_t
-interrupt<T>::s_isrs[interrupt<T>::IDT_ENT_CNT];
 

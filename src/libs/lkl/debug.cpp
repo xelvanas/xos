@@ -51,6 +51,11 @@ void dbg_num(uint32_t val, uint8_t col) {
     print.set_default_color(old);
 }
 
+void dbg_char(char ch, uint8_t col) {
+    color_t old = print.set_default_color(col);
+    print.add_char(ch);
+    print.set_default_color(old);
+}
 
 void dbg_ln() {
     print.line_feed();

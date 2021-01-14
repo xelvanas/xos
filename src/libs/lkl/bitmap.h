@@ -68,8 +68,6 @@ public:
     }
 
     bool test(uint32_t idx, bool val = true) const {
-        // dbg_mhl("idx:", (uint32_t)idx);
-        // dbg_mhl("total:", (uint32_t)bit_size());
         // error index
         ASSERT(idx < bit_size() && "error idx value.");
 

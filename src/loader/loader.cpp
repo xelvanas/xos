@@ -41,6 +41,7 @@
 #include <memory.h>
 #include <tskmgr.h>
 #include <lock.h>
+#include <kbd.h>
 
 /* 
  * In normal situations, compiler and standard libs did a lot of jobs
@@ -163,25 +164,10 @@ void thread_b(void* arg) {
     }
 }
 
-class testauto
-{
-public:
-    testauto() {
-        dbg_msg("ctor\n");
-    }
-    ~testauto() {
-        dbg_msg("dtor\n");
-    }
-};
-
-
 int main() {
     // never move any code before invoke_global_ctors()
     // unless you know what you're doing.
     invoke_global_ctors();
-    {
-        testauto at;
-    }
 
     msg_welcome();
     enable_paging(0x00100000);
@@ -199,18 +185,21 @@ int main() {
 
     pic8259a::init();
     interrupt<x86_asm>::init((gate_desc_t*)0x8000, 0x30);
-    task_mgr::init();
-    x86_asm::turn_interrupt_on();
     
-    pic8259a::enable(pic8259a::DEV_TIMER);
-    pit8253::freq(4000);
-    task_mgr::begin_thread(thread_a, nullptr, "thA", 5);
-    task_mgr::begin_thread(thread_b, nullptr, "thB", 10);
+    x86_asm::turn_interrupt_on();
+    keyboard::init();
+    pic8259a::enable(pic8259a::DEV_KEYBOARD);
+    // task_mgr::init();
+    // pic8259a::enable(pic8259a::DEV_TIMER);
+    
+    // pit8253::freq(4000);
+    // task_mgr::begin_thread(thread_a, nullptr, "thA", 5);
+    // task_mgr::begin_thread(thread_b, nullptr, "thB", 10);
 
     while(1) {
-        g_screen_lock.acquire();
-        dbg_msg("main ");
-        g_screen_lock.release();
+        // g_screen_lock.acquire();
+        // dbg_msg("main ");
+        // g_screen_lock.release();
     }
     return 0;
 }

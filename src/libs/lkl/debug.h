@@ -10,7 +10,8 @@ extern "C"
    void dbg_msg(const char* msg, uint8_t col = 0x07); //0x07:light gray
    void dbg_hex(uint32_t val, uint8_t col = 0x07);
    void dbg_num(uint32_t val, uint8_t col = 0x07);
-
+   void dbg_char(char ch, uint8_t col = 0x07);
+   
    void dbg_ln();
    void dbg_mdl(const char* msg, uint32_t val, uint8_t col = 0x07);
    void dbg_mhl(const char* msg, uint32_t val, uint8_t col = 0x07);

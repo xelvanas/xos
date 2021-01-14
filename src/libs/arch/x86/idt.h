@@ -343,8 +343,10 @@ public:
                  break;
             default:
                  dbg_mhl("Unknown Number: ", vct, 0x06);
-
         }
-
     }
 };
+
+template<typename T>
+interrupt<T>::isr_t
+interrupt<T>::s_isrs[interrupt<T>::IDT_ENT_CNT];
