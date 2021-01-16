@@ -173,7 +173,7 @@ public:
 
 private:
     // creating an instance is disallowed.
-    mem_mgr() {}
+    mem_mgr() = delete;
 
     static inline uint32_t
     __inner_detect_unallocated_pte(

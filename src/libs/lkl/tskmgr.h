@@ -67,7 +67,7 @@ protected:
 
 private:
     // creating an instance is disallowed
-    task_mgr() {};    
+    task_mgr() = delete;  
 };
 
 

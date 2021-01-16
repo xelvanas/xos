@@ -197,7 +197,7 @@ protected:
     
 private:
     // now allow to instantialize
-    thread_t() {}
+    thread_t() = delete;
 };
 
 

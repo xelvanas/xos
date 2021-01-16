@@ -232,11 +232,11 @@ clear_screen:
 ; no parameter needed.
     pusha
     mov     ah, 0x06 ; option 06
-    mov     al, 0h ; clear screen
-    mov     ch, 0 ; row of upper left corner of scroll window
-    mov     cl, 0 ; column of upper left corner of scroll window
-    mov     dh, 24 ; row of lower right corner of scroll window
-    mov     dl, 79 ; column of lower right corner of scroll window
+    mov     al, 0h   ; clear screen
+    mov     ch, 0    ; row of upper left corner of scroll window
+    mov     cl, 0    ; column of upper left corner of scroll window
+    mov     dh, 24   ; row of lower right corner of scroll window
+    mov     dl, 79   ; column of lower right corner of scroll window
     ; color attributes, black background and white character color
     mov     bh, 00000111b
     int     0x10 ; execute

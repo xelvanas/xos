@@ -107,5 +107,5 @@ public:
     }
 private:
     // creating an instance is disallowed.
-    x86_io() {} 
+    x86_io() = delete; 
 };

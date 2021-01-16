@@ -173,7 +173,6 @@ public:
         dbg_hex(_type);
         dbg_ln();
     }
-
 };
 
 ns_lite_kernel_lib_end

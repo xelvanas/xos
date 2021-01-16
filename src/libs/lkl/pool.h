@@ -2,7 +2,6 @@
 #include <lkl.h>
 #include <bitmap.h>
 
-
 ns_lite_kernel_lib_begin
 
 class pool_t

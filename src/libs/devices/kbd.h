@@ -240,7 +240,7 @@ public:
 
     inline bool
     is_key_down() {
-        return lkl::bit_test(_sc, SC_MASK_UP);
+        return !lkl::bit_test(_sc, SC_MASK_UP);
     }
 
     inline kbdms_t&
@@ -315,42 +315,5 @@ public:
     keyboard_handler(uint32_t vct);
 
 private:
-    keyboard() {};
+    keyboard() = delete;
 };
-
-// class keyboard
-// {
-// private:
-//     // static uint8_t s_states;
-//     // static kbdms_t s_modifiers;
-// public:
-//     enum
-//     {
-//         KBS_INITED  = 0x01,
-//         KBD_PORT    = 0x60,
-//     };
-//     static void
-//     init() {
-//         interrupt<x86_asm>::reg(
-//             pic8259a::DEV_KEYBOARD,
-//             keyboard_handler
-//         );
-
-//     }
-
-//     // static bool
-//     // is_initialized() {
-//     //     return lkl::bit_test(s_states, KBS_INITED);
-//     // }
-    
-//     static void
-//     keyboard_handler(uint32_t vct) {
-//         dbg_msg(" in ");
-//         x86_io::inb(0x60);
-        
-
-//     }
-
-// private:
-//     keyboard() {};
-// };
