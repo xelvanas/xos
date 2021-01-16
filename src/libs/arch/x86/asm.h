@@ -53,6 +53,11 @@ public:
     }
 
     static inline void
+    load_tr(uint32_t offset) {
+        asm volatile("ltr %0": :"m" (offset));
+    }
+
+    static inline void
     store_gdt(gdt_desc_t *gdt) {
         asm volatile("sgdt %0":"=m" (*gdt));
     }

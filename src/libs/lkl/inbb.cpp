@@ -2,13 +2,16 @@
 #include <debug.h>
 #include <tskmgr.h>
 #include <x86/asm.h>
+#include <inbb.h>
 
 ns_lite_kernel_lib_begin
 
 void
-inbb_t::putc(char c)
+inbb_t::putc(scode_t sc)
 {
+    //dbg_mhl("getc consumer:", (uint32_t)task_mgr::current_thread());
     ASSERT(!x86_asm::is_interrupt_on());
+
     while(full()) {
         _lock.acquire();
         // here is another similar solution
@@ -41,7 +44,7 @@ inbb_t::putc(char c)
         _lock.release();
     }
 
-    _buf[_head] = c;
+    _buf[_head] = sc;
     _head = next(_head);
 
     if(_consumer != nullptr) {
@@ -49,24 +52,30 @@ inbb_t::putc(char c)
     }
 }
 
-char
+scode_t
 inbb_t::getc()
 {
+    //dbg_mhl("getc consumer:", (uint32_t)task_mgr::current_thread());
+    
+
+
     ASSERT(!x86_asm::is_interrupt_on());
     while(empty()) {
         _lock.acquire();
+        //dbg_mhl("getc consumer1:", (uint32_t)_consumer);
         wait(false);
         _lock.release();
     }
 
-    char c = _buf[_tail];
-    // I think there is a bug, consider this
-    // suppose buffer has one 'char', a consumer get there and
-    // take a 'char', before _tail = next(_tail)
-    // another consumer gets there (by task_switch, buffer not empty)
-    // he takes one. then task_switch happens.
-    // now, two consumers took same 'char' and they will increase _tail
-    // twice.
+    scode_t sc = _buf[_tail];
+    // I think there is a bug.
+    // suppose that buffer has one 'char', a consumer gets there and
+    // takes a 'char' before '_tail = next(_tail)'.
+    // another consumer gets there (by 'task_switch', buffer isn't empty.)
+    // the second consumer takes one. then 'task_switch' switched to new
+    // thread, now, two consumers took same 'char' and they will increase
+    //  _tail twice.
+    // 
     // no producer produced anything, suddenly, buffer is full. because
     // next(_head) == _tail
     //
@@ -77,16 +86,20 @@ inbb_t::getc()
     if(_producer != nullptr) {
         signal(true);
     }
-    return c;
+    return sc;
 }
 
 void
-inbb_t::wait(bool producer)
+inbb_t::wait(bool who)
 {
-    if(producer) {
+    if(who) { //producer
         ASSERT(_producer == nullptr);
         _producer = task_mgr::current_thread();
     } else {
+        if( _consumer != nullptr) {
+            // dbg_mhl("consumer:", (uint32_t)_consumer);
+            // while(1);
+        }
         ASSERT(_consumer == nullptr);
         _consumer = task_mgr::current_thread();
     }
@@ -98,9 +111,11 @@ inbb_t::signal(bool producer) {
     thread_t* th = nullptr;
     if(producer) {
         th = _producer;
+        //dbg_mhl("signal producer:", (uint32_t)_producer);
         _producer = nullptr;
     } else {
         th = _consumer;
+        //dbg_mhl("signal consumer:", (uint32_t)_consumer);
         _consumer = nullptr;
     }
 

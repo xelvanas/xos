@@ -518,11 +518,13 @@ public:
         } else if(ch.is_backspace()) {
             int16_t pos = _cur.update();
 
-            // clear char value, update color
-            _scr[pos] = (uint16_t)col << 8;
-            
+            if(pos < 1)
+                return;
+
+            // clear char value, update color            
             while(pos--) {
-                if(_scr[pos] & 0x00FF) {
+                _scr[pos] = (uint16_t)col << 8;
+                if((_scr[pos] & 0xFF00) != 0) {
                     break;
                 }
             }

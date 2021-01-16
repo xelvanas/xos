@@ -36,12 +36,15 @@
 #include <x86/asm.h>
 #include <x86/paging.h>
 #include <x86/idt.h>
+#include <x86/tss.h>
 #include <debug.h>
 #include <timer.h>
 #include <memory.h>
 #include <tskmgr.h>
 #include <lock.h>
 #include <kbd.h>
+#include <inbb.h>
+#include <scode.h>
 
 /* 
  * In normal situations, compiler and standard libs did a lot of jobs
@@ -72,7 +75,12 @@ inline void invoke_global_ctors() {
 
 using namespace lkl;
 
+// -----------------------------------------------------------------------
+// Global Variables
 lock_t g_screen_lock;
+extern inbb_t g_kbd_buffer;
+// -----------------------------------------------------------------------
+
 
 void msg_welcome() {
 
@@ -150,7 +158,7 @@ void thread_a(void* arg) {
     
     while(1) {
         g_screen_lock.acquire();
-        dbg_msg("AAAA ");
+        //dbg_msg("AAAA ");
         g_screen_lock.release();
     }
 }
@@ -159,7 +167,7 @@ void thread_b(void* arg) {
     
     while(1) {
         g_screen_lock.acquire();
-        dbg_msg("BBBB ");
+        //dbg_msg("BBBB ");
         g_screen_lock.release();
     }
 }
@@ -172,7 +180,7 @@ int main() {
     msg_welcome();
     enable_paging(0x00100000);
     msg_paging_enabled();
-
+    tss_t::init();
     mem_mgr::init();
 
     auto addr = mem_mgr::alloc(mem_mgr::PT_KERNEL, 1);
@@ -189,17 +197,26 @@ int main() {
     x86_asm::turn_interrupt_on();
     keyboard::init();
     pic8259a::enable(pic8259a::DEV_KEYBOARD);
-    // task_mgr::init();
-    // pic8259a::enable(pic8259a::DEV_TIMER);
+    task_mgr::init();
+    pic8259a::enable(pic8259a::DEV_TIMER);
     
-    // pit8253::freq(4000);
-    // task_mgr::begin_thread(thread_a, nullptr, "thA", 5);
-    // task_mgr::begin_thread(thread_b, nullptr, "thB", 10);
+    pit8253::freq(4000);
+    task_mgr::begin_thread(thread_a, nullptr, "thA", 5);
+    task_mgr::begin_thread(thread_b, nullptr, "thB", 10);
 
     while(1) {
         // g_screen_lock.acquire();
         // dbg_msg("main ");
         // g_screen_lock.release();
+        auto_intr<x86_asm> ai(false);
+        scode_t sc = g_kbd_buffer.getc();
+        if(sc.is_visible() ||
+           sc.is_special()) 
+        {
+            if(sc.is_key_down()) {
+                dbg_char(sc);
+            } 
+        }
     }
     return 0;
 }

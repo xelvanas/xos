@@ -179,7 +179,8 @@ using idt_desc_t = gdt_desc_t;
 // generic segment descriptor
 class code_desc_t
 {
-public:
+private:
+
     uint16_t _limit_l;     // limit 0-15
     uint16_t _base_l;      // base 0-15
     uint8_t  _base_m;      // base 16-23
@@ -193,11 +194,12 @@ public:
              _d       : 1, // default (AMD: reserved)
              _g       : 1; // granularity
     uint8_t  _base_h;      // base 23-31
-
+public:
     enum
     {
         DESC_TYPE_CODE = 0b1010,
-        DESC_TYPE_DATA = 0b0010
+        DESC_TYPE_DATA = 0b0010,
+        DESC_TYPE_TSS  = 0b1001
     };
 
     void reset()
@@ -206,25 +208,32 @@ public:
         _base_l  = 0;
         _base_m  = 0;
         _type    = 0;
-        _s       = 1; // code/data segment
+        _s       = 0; // code/data segment
         _dpl     = 0;
-        _p       = 0;
+        _p       = 1; // normally true
         _limit_h = 0;
         _avl     = 0;
         _l       = 0;
         _d       = 0;
-        _g       = 1; // 4K is default
+        _g       = 1; // 4K is default, 0 = byte
         _base_h  = 0;
     }
 
     void initialize(uint8_t  type,
                     uint32_t base,
                     uint32_t limit,
-                    uint8_t  dpl)
+                    uint8_t  dpl,
+                    bool     gran4k  = true,
+                    bool     present = true,
+                    bool     sys     = false)
     {
-        _s    = 1; // which means it's code/data segment
+         // 0 for tss/ldt (system)
+         // 1 for code/data segment
         _type = type;
         _dpl  = dpl;
+        _g    = gran4k  ? 1 : 0;
+        _p    = present ? 1 : 0;
+        _s    = sys     ? 0 : 1;
         set_limit(limit);
         set_base(base);
     }
@@ -251,6 +260,7 @@ public:
 
 // data segment descriptor
 using data_desc_t = code_desc_t;
+using tss_desc_t  = code_desc_t;
 
 /* ---------------------------------------------------------------------------
  * Gate Descriptors 
@@ -280,7 +290,12 @@ public:
     uint16_t _offset_h;
 
 public:
-
+    enum // descriptor type
+    {
+        DT_CALL_GATE  =  0b0000'1100,
+        DT_TRAP_GATE  =  0b0000'1111,
+        DT_TASK_GATE  =  0b0000'0101
+    };
     void initialize(uint32_t offset,
                     uint16_t selector,
                     uint8_t  type,
@@ -297,6 +312,8 @@ public:
         _p        = 1;
     }
 
+
+
     void set_offset(uint32_t offset) {
         _offset_l = (uint16_t)offset;
         _offset_h = (uint16_t)(offset >> 16);
@@ -306,5 +323,7 @@ public:
         return _offset_l | _offset_h << 16;
     }
 };
+
+
 
 #pragma pack(pop)

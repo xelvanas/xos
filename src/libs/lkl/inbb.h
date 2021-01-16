@@ -1,6 +1,7 @@
 #pragma once
 #include <lkl.h>
 #include <lock.h>
+#include <scode.h>
 
 
 ns_lite_kernel_lib_begin
@@ -16,7 +17,7 @@ class inbb_t
     };
 private:
     lock_t      _lock;
-    char        _buf[BUF_SIZE]  = {0};
+    scode_t     _buf[BUF_SIZE];
     int32_t     _head           = 0;
     int32_t     _tail           = 0;
     thread_t*   _producer       = nullptr;
@@ -38,9 +39,9 @@ public:
     }
 
     void
-    putc(char c);
+    putc(scode_t c);
 
-    char
+    scode_t
     getc();
 
     void

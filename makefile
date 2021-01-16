@@ -228,7 +228,7 @@ clean:
 	$(RM) ./build
 
 run: all
-	-bochsdbg.exe -f ./boot.bxrc
+	-bochsdbg.exe -f ./boot.bxrc 
 
 test: $(TESTS)
 	./$(TESTS)
