@@ -102,7 +102,7 @@ static uint32_t
 v2p(uint32_t addr)
 {
     pte_t pte = addr;
-    return pte.address() + (addr&pte.PG_12BIT_FLAG);
+    return pte.address() + (addr&pte.MASK_LO_12BITS);
 }
 
 uint32_t mem_mgr::__inner_detect_unallocated_pte(
@@ -135,7 +135,7 @@ void mem_mgr::__inner_map_virtual_on_phys(
         memset(pg, 0, PAGE_SIZE);
         pde->address((uint32_t)pg);
         pde->present(true);
-        pde->ro(false);
+        pde->writable(true);
         // note: cannot use physical address (pg) to access pte directly
     }
     auto pte = __inner_get_pte_v(vaddr);

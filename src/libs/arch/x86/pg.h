@@ -82,175 +82,160 @@ inline extern const int PAGE_SIZE   = 0x1000;
 inline extern const int PD_ENT_NUM  = 0x0400; // page-directory entry num
 inline extern const int PT_ENT_NUM  = 0x0400; // page-table entry num
 
-struct raw_pg_ent_t
+struct raw_pde_t
 {
+    bool     p       :  1; // present
+    bool     rw      :  1; // read/write
+    bool     us      :  1; // user/supervisor
+    bool     pwt     :  1; // page-level write through
+    bool     pcd     :  1; // page-level cache disable
+    bool     a       :  1; // accessed
+    bool     ign1    :  1; // ignored
+    bool     ps      :  1; // page size, used when cr4.pse = 1
+    uint8_t  ign2    :  4; // ignored
+    uint32_t address : 20; // physical address of 4k aligned page table
+};
 
+struct raw_pte_t
+{
+    bool     p       :  1; // present
+    bool     rw      :  1; // read/write
+    bool     us      :  1; // user/supervisor
+    bool     pwt     :  1; // page-level write through
+    bool     pcd     :  1; // page-level cache disable
+    bool     a       :  1; // accessed
+    bool     d       :  1; // dirty
+    bool     pat     :  1; // page attribute table
+    bool     g       :  1; // global
+    uint8_t  ign2    :  3; // ignored
+    uint32_t address : 20; // physical address of 4k page 
 };
 
 // page generic entry
 // can present both pde and pte
 class pge_t
 {
-private:
-    uint32_t _value;
+protected:
+    union
+    {
+        raw_pde_t _pde;
+        raw_pte_t _pte;
+        uint32_t  _value;
+    };
 public:
     enum
     {
-        PG_PRESENT      = 0x00000001, // present
-        PG_RW           = 0x00000002, // read/write
-        PG_USER         = 0x00000004, // user mode if set
-        PG_SUPERVISOR   = 0x00000004, // supervisor if not set
-        PG_PWT          = 0x00000008, // page write through
-        PG_PCD          = 0x00000010, // page-level cache disable
-        PG_ACCESSED     = 0x00000020, // leave it to CPU
-        PG_DIRTY        = 0x00000040, // dirty [PTE only]
-        PG_SIZE         = 0x00000080, // page size [PDE only]
-        PG_PAT          = 0x00000080, // page attribute table [PTE only]
-        PG_GLOBAL       = 0x00000100, // global if CR4.PGE = 1[PTE only]
-        PG_12BIT_FLAG   = 0x00000FFF,
-        PG_ADDRESS      = 0xFFFFF000
+        MASK_LO_12BITS = 0x0000'0FFF,
+        MASK_HI_20BITS = 0xFFFF'F000
     };
 
+public:
     pge_t() = default;
+    pge_t(uint32_t val)
+        : _value(val) {
 
-    pge_t(uint32_t v) 
-        : _value(v) {
     }
 
-    // get present
-    bool present() const {
-        return lkl::bit_test(_value, PG_PRESENT);
+    inline void
+    zeroize() {
+        _value = 0;
+    }
+
+    // must be true to map a 'page' or 'page table' 
+    bool
+    present() const {
+        return _pde.p;
     }
     
-    // set present
-    void present(bool p) {
-        lkl::bit_set(_value, PG_PRESENT, p);
+    // set whether 'page'/'page table' referenced by this entry valid.
+    void
+    present(bool p) {
+        _pde.p = p;
     }
 
-    // get readonly
-    bool ro() const {
-        return lkl::bit_test(_value, PG_RW);
+    // false: read only
+    // true:  writes allowed
+    bool
+    writable() const {
+        return _pde.rw;
     }
 
-    // set readonly
-    void ro(bool r) {
-        lkl::bit_set(_value, !r, PG_RW);
+    // true:  writable
+    // false: read only
+    void
+    writable(bool v) {
+        _pde.rw = v;
     }
 
-    // get user mode
-    bool usr() const {
-        return lkl::bit_test(_value, PG_USER);
+    // false: supervisor-mode
+    // true:  user-mode
+    bool
+    usr() const {
+        return _pde.us;
     }
 
-    // set user mode
-    void usr(bool u) {
-        lkl::bit_set(_value, PG_USER, u);
+    // false: supervisor-mode
+    // true:  user-mode
+    void
+    usr(bool v) {
+        _pde.us = v;
     }
 
-    // get supervisor mode
-    // user-mode accesses are not allowed if it is 'true'
-    bool sup() const {
-        return lkl::bit_test(_value, PG_SUPERVISOR) == false;
+    // page write through state
+    bool
+    pwt() const {
+        return _pde.pwt;
     }
 
-    // set supervisor mode
-    // sup(true) -> flag = 0, user-mode accesses are not allowed.
-    void sup(bool s) {
-        lkl::bit_set(_value, PG_SUPERVISOR, !s);
+    // set page write through state
+    void
+    pwt(bool p) {
+        _pde.pwt = p;
     }
 
-    // get page write through
-    bool pwt() const {
-        return lkl::bit_test(_value, PG_PWT);
-    }
-
-    // set page write through
-    void pwt(bool p) {
-        lkl::bit_set(_value, PG_PWT, p);
-    }
-
-    // get page level cache disable
-    bool pcd() const {
-        return lkl::bit_test(_value, PG_PCD);
+    // page level cache disable 
+    bool
+    pcd() const {
+        return _pde.pcd;
     }
 
     // set page level cache disable
-    void pcd(bool p) {
-        lkl::bit_set(_value, PG_PCD, p);
+    void
+    pcd(bool p) {
+        _pde.pcd = p;
     }
 
-    // get page accessed
-    bool accessed() const {
-        return lkl::bit_test(_value, PG_ACCESSED);
+    // test if entry accessed by software
+    bool
+    accessed() const {
+        return _pde.a;
     }
 
-    // set page accessed
-    void accessed(bool a) {
-        lkl::bit_set(_value, PG_ACCESSED, a);
-    }
-
-    // get dirty
-    // PTE only
-    bool dirty() const {
-        return lkl::bit_test(_value, PG_DIRTY);
-    }
-
-    // set dirty
-    // PTE only
-    void dirty(bool d) {
-        lkl::bit_set(_value, PG_DIRTY, d);
-    }
-
-    // get page size
-    // PDE only
-    bool ps() const {
-        return lkl::bit_test(_value, PG_SIZE);
-    }
-
-    // set page size
-    // PDE only
-    void ps(bool p) {
-        lkl::bit_set(_value, PG_SIZE, p);
-    }
-
-    // get page attribute table
-    // PTE only
-    bool pat() const {
-        return lkl::bit_test(_value, PG_PAT);
-    }
-
-    // set page attribute table
-    // PTE only
-    void pat(bool p) {
-        lkl::bit_set(_value, PG_PAT, p);
-    }
-
-    // get page attribute table
-    // PTE only
-    bool global() const {
-        return lkl::bit_test(_value, PG_GLOBAL);
-    }
-
-    // set page attribute table
-    // PTE only
-    void global(bool g) {
-        lkl::bit_set(_value, PG_GLOBAL, g);
-    }
+    // set page accessed state
+    // void
+    // accessed(bool a) {
+    //     _pde.a = a;
+    // }
 
     // set physical address
-    void address(uint32_t addr) {
-        _value = (_value&PG_12BIT_FLAG) | (addr&PG_ADDRESS);
+    void
+    address(uint32_t addr) {
+        _pde.address = addr >> 12;
     }
 
     // get physical address
-    uint32_t address() const {
-        return _value & PG_ADDRESS;
+    uint32_t
+    address() const {
+        return _pde.address << 12;
     }
 
-    operator uint32_t() const { return *(uint32_t*)this; }
+    operator uint32_t() const {
+        return _value;
+    }
 
-    const pge_t& operator=(uint32_t val) {
-        *(uint32_t*)this = val;
+    const pge_t&
+    operator=(uint32_t val) {
+        _value = val;
         return *this;
     }
 
@@ -264,6 +249,79 @@ public:
         return ((addr & 0x003ff000) >> 12);
     }
 };
+
+class pde_t : public pge_t
+{
+public:
+    pde_t() = default;
+    pde_t(uint32_t val)
+        : pge_t(val) {
+
+    }
+    // page size
+    // if cr4.PSE = 1, must be 0 (otherwise, this entry maps 4-MByte page);
+    // otherwise: ignored
+    bool ps() const {
+        return _pde.ps;
+    }
+
+    // set page size
+    // PDE only
+    void ps(bool p) {
+        _pde.ps = p;
+    }
+};
+
+class pte_t : public pge_t
+{
+public:
+    pte_t() = default;
+    pte_t(uint32_t val)
+        : pge_t(val) {
+
+    }
+    // Dirty
+    // indicates whether software was written to this 4-Kbyte page
+    // referenced by this entry
+    // can be used as a guard to detect overflow
+    bool dirty() const {
+        return _pte.d;
+    }
+
+    // not allowed to write this value yet
+    // void dirty(bool d) {
+    //     lkl::bit_set(_value, PG_DIRTY, d);
+    // }
+
+    // Page Attribute Table
+    // if the PAT is supported, indirectly determines the memory type used
+    // to access the 4-KByte page referenced by this entry
+    bool pat() const {
+        return _pte.pat;
+    }
+
+    // Page Attribute Table
+    // if the PAT is supported, indirectly determines the memory type used
+    // to access the 4-KByte page referenced by this entry
+    void pat(bool p) {
+        _pte.pat = p;
+    }
+
+    // Global:
+    // if cr4.PGE = 1, determines whether the translation is global;
+    // otherwise: ignored.
+    bool global() const {
+        return _pte.g;
+    }
+
+    // Global:
+    // if cr4.PGE = 1, determines whether the translation is global;
+    // otherwise: ignored.
+    void global(bool g) {
+        _pte.g = g;
+    }
+};
+
 
 // page entry array
 class pea_t
@@ -332,8 +390,8 @@ public:
 };
 
 // aliases
-using pde_t      = pge_t;
-using pte_t      = pge_t;
+// using pde_t      = pge_t;
+// using pte_t      = pge_t;
 using page_dir_t = pea_t;
 using page_tbl_t = pea_t;
 

@@ -32,9 +32,9 @@ pg_mgr::create_page_dir(
     pge_t pge;
     
     // pge.present(true); // not present yet
-    pge.sup(true);     // user-mode accesses disallowed
-    pge.ro(false);     // not read-only
-    pge.sup(true); 
+    pge.usr(false);     // user-mode accesses disallowed
+    pge.writable(true);     // not read-only
+    pge.usr(false); 
 
     if(ims != 0) {
         pd.fill(offset, ims, pge);
@@ -42,7 +42,7 @@ pg_mgr::create_page_dir(
     }
 
     // user space
-    pge.sup(false);
+    pge.usr(false);
 
     if(uss) {
         pd.fill(offset, offset+uss, pge, 0);
@@ -50,7 +50,7 @@ pg_mgr::create_page_dir(
     }
 
     // kernel space
-    pge.sup(true);
+    pge.usr(true);
     if(kns) {
         pd.fill(offset, offset + kns, pge);
     }

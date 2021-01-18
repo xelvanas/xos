@@ -102,8 +102,8 @@ void enable_paging(uint32_t addr) {
     const uint32_t entry_num = 1024;
     pde_t pde;
     pde.present(false); // not present yet
-    pde.sup(true); // user-mode accesses disallowed
-    pde.ro(false); // not read-only
+    pde.usr(false); // user-mode accesses disallowed
+    pde.writable(true); // not read-only
     
     // 'page directory' address is 'addr'(def:0x00100000)
     // 'page directory' has 1024 PDEs
@@ -132,8 +132,8 @@ void enable_paging(uint32_t addr) {
     page_tbl_t pt(nullptr, 0);
     pte_t pte;
     pte.present(true);
-    pte.sup(true);
-    pte.ro(false);
+    pte.usr(false);
+    pte.writable(true);
 
     auto map_pte_on_pa = [&](pte_t* dst, uint32_t phys_addr) {
         pt.reset((pte_t*)dst, entry_num);
