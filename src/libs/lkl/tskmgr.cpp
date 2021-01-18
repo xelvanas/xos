@@ -188,7 +188,7 @@ task_mgr::begin_thread(
         return false;
     }
 
-    auto addr  = (uint32_t)th + mem_mgr::PAGE_SIZE;
+    auto addr  = (uint32_t)th + PAGE_SIZE;
          addr -= sizeof(intr_stack);
          addr -= sizeof(thread_stack);
 
@@ -239,6 +239,38 @@ task_mgr::unblock_thread(thread_t* th)
     s_rdy_queue.push_back(th->node_ptr());
 }
 
+
+// bool
+// task_mgr::create_process(uint32_t func)
+// {
+//     if(func == 0)
+//         return false;
+
+//     // one page for PCB
+//     auto pcb = mem_mgr::alloc(mem_mgr::PT_KERNEL, 1);
+//     ASSERT(pcb != nullptr);
+
+//     // one page for 'page table'
+//     auto cr3 = mem_mgr::alloc(mem_mgr::PT_KERNEL, 1);
+//     ASSERT(cr3 != nullptr);
+
+//     auto cr3_phys = mem_mgr::v2p((uint32_t)cr3);
+
+    
+//     return false;
+// }
+bool
+task_mgr::create_process(uint32_t func)
+{
+    // int arr[3] = {1,2,3};
+    // for(auto& x : arr) {
+
+    // }
+    // auto [a, b ,c] = arr;
+    // auto  x = a;
+    return false;
+}
+
 // -----------------------------------------------------------------------
 // Private Members of Task Manager
 
@@ -278,6 +310,7 @@ task_mgr::__inner_cur_thrd_as_main_thrd() {
     th->anode().reset(th);
     s_all_queue.push_back(th->anode_ptr());
 }
+
 // 
 // -----------------------------------------------------------------------
 

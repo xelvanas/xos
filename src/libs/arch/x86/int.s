@@ -11,7 +11,7 @@
 ; 1. CPU saves SS, ESP, EFLAGS, CS and EIP registers in somewhere
 ;    temporarily. leaves 'user stack' intact.
 ; 
-;   │ User Stack               │         │ ESP0 from TSS            │
+;   │ User Stack               │         │ ESP0 from TSS            │ H
 ;   ├──────────────────────────┤         ├──────────────────────────┤
 ;   │           0x56           │         │                          │
 ;   ├──────────────────────────┤         ├──────────────────────────┤
@@ -23,12 +23,12 @@
 ;   ├──────────────────────────┤         ├──────────────────────────┤
 ;   │                          │         │                          │
 ;   ├──────────────────────────┤         ├──────────────────────────┤
-;   │                          │         │                          │
+;   │                          │         │                          │ L
 ; 
 ; 2. Loads SS0 and ESP0 (CPL = 0) from the TSS into the SS and ESP
 ;    registers and switches to new stack.
 ; 
-;   │ ESP = ESP0   (kernel)    │
+;   │ ESP = ESP0   (kernel)    │ H
 ;   ├──────────────────────────┤
 ;   │                          │
 ;   ├──────────────────────────┤
@@ -40,12 +40,12 @@
 ;   ├──────────────────────────┤
 ;   │                          │
 ;   ├──────────────────────────┤
-;   │                          │
+;   │                          │ L
 ;
 ; 3. Pushes registers which CPU saved in step 1 into new stack.
 ; 4. Pushes an error code on the new stack if it has one.
 ; 
-;   │ ESP = ESP0   (kernel)    │
+;   │ ESP = ESP0   (kernel)    │ H
 ;   ├──────────────────────────┤
 ;   │          SS              │
 ;   ├──────────────────────────┤
@@ -59,14 +59,14 @@
 ;   ├──────────────────────────┤
 ;   │          Error Code      │
 ;   ├──────────────────────────┤
-;   │                          │
+;   │                          │ L
 ; 
 ; 5. Loads 'selector' and 'offset' from 'IDT' into CS and EIP.
 ; 6. If call is through an interrupt gate, clears the 'IF' flag in the
 ;    EFLAGS register.
 ; 7. Execute ISR at new privilege level.
 ; 
-;   │ User Stack               │         │ ESP0 from TSS            │
+;   │ User Stack               │         │ ESP0 from TSS            │ H
 ;   ├──────────────────────────┤         ├──────────────────────────┤
 ;   │           0x56           │         │                          │
 ;   ├──────────────────────────┤         ├──────────────────────────┤
@@ -78,7 +78,7 @@
 ;   ├──────────────────────────┤         ├──────────────────────────┤
 ;   │                          │         │                          │
 ;   ├──────────────────────────┤         ├──────────────────────────┤
-;   │                          │         │                          │
+;   │                          │         │                          │ L
 ; 
 ; KERNEL:
 ; If an interrupt occurred in kernel space, no stack switching occurs.
@@ -86,7 +86,7 @@
 ; 1. Push EFLAGS, CS, EIP into stack.
 ; 2. Push an error code if there is one.
 ;  
-;    │ Kernel Stack             │
+;    │ Kernel Stack             │ H
 ;    ├──────────────────────────┤
 ;    │          EFLAGS          │
 ;    ├──────────────────────────┤
@@ -98,7 +98,7 @@
 ;    ├──────────────────────────┤
 ;    │                          │
 ;    ├──────────────────────────┤
-;    │                          │
+;    │                          │ L
 ;
 ; 3. Load new CS, EIP from IDT.
 ; 4. Clear 'IF' flag in the EFLAGS if call is through an 
@@ -165,7 +165,7 @@ isr_%1:
     call    main_cxx_isr
 
     ; all entries share same exit code.
-    jmp     intr_exit
+    jmp     isr_exit
 
 ; we uglily defined isr_%1 here because we need to keep
 ; this code segment inside the macro.
@@ -177,8 +177,9 @@ section .data
 section     .text
 
 ; all ISRs share same exit code
-global      intr_exit
-intr_exit:
+global      restore_kstack
+isr_exit:
+restore_kstack:
     add     esp, 4 ; pop second parameter
     popad   ; pop EDI ESI EBP ESP EBX EDX ECX and EAX
     pop     gs

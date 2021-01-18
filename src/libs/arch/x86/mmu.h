@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <bit.h>
 
 /* ---------------------------------------------------------------------------
  * GDT and Segment Registers
@@ -168,161 +169,276 @@
 
 #pragma pack(push, 1)
 
-struct gdt_desc_t
+// Table Descriptor:
+// GDT(global descriptor table), LDT(local descriptor table) and IDT(int-
+// terrupt descriptor table share the same structure.
+struct tbl_desc_t
 {
-    uint16_t _size;
-    uint32_t _address;
+    uint16_t size;     // table size should always be sizeof(table) - 1
+    uint32_t address;  // where the table stored
 };
 
-using idt_desc_t = gdt_desc_t;
+using gdt_desc_t = tbl_desc_t;
+using idt_desc_t = tbl_desc_t;
 
-// generic segment descriptor
-class code_desc_t
+struct raw_seg_desc_t
 {
-private:
+    uint16_t limit_l;     // limit 0-15
+    uint16_t base_l;      // base 0-15
+    uint8_t  base_m;      // base 16-23
+    uint8_t  type    : 4, // segment type
+             s       : 1, // 0:system(tss/idt) or 1:code/data segment
+             dpl     : 2, // desc privilege level
+             p       : 1; // present
+    uint8_t  limit_h : 4, // limit 16-19
+             avl     : 1, // available to user(sys. programmer)
+             l       : 1, // 64-bit flag (64-bit only)
+             d       : 1, // default (AMD: reserved)
+             g       : 1; // granularity: 
+    uint8_t  base_h;      // base 23-31
+};
 
-    uint16_t _limit_l;     // limit 0-15
-    uint16_t _base_l;      // base 0-15
-    uint8_t  _base_m;      // base 16-23
-    uint8_t  _type    : 4, // segment type
-             _s       : 1, // 0:system(tss/idt) or 1:code/data segment
-             _dpl     : 2, // desc privilege level
-             _p       : 1; // present
-    uint8_t  _limit_h : 4, // limit 16-19
-             _avl     : 1, // available to user(sys. programmer)
-             _l       : 1, // 64-bit flag
-             _d       : 1, // default (AMD: reserved)
-             _g       : 1; // granularity
-    uint8_t  _base_h;      // base 23-31
+struct raw_gate_desc_t
+{
+    uint16_t offset_l;     // entry point of function
+    uint16_t selector;     // segment selector
+    uint8_t  parm_cnt : 5, // parameter count
+             rsrv     : 3; // reserved
+    uint8_t  type     : 5, // gate type
+             dpl      : 2, // descriptor privilege level
+             p        : 1; // gate valid
+    uint16_t offset_h;
+};
+
+class base_desc_t
+{
+protected:
+    union
+    {
+        raw_seg_desc_t  _seg;
+        raw_gate_desc_t _gate;
+    };
+protected:
+    inline void
+    zeroize() {
+        auto ptr = (int*)this;
+        ptr[0]   = 0;
+        ptr[1]   = 0;
+    }
 public:
+    enum class dpl_t
+    {
+        DPL_0  = 0,
+        DPL_3  = 3
+    };    
+
+public:
+    inline void
+    present(bool p) {
+        _seg.p = p ? 1 : 0;
+    }
+    
+    inline bool
+    present() const {
+        return _seg.p != 0;
+    }
+
+    inline void
+    dpl(dpl_t d) {
+        _seg.dpl = (uint8_t)d;
+    }
+
+    inline dpl_t
+    dpl() const {
+        return (dpl_t)_seg.dpl;
+    }
+};
+
+class segment_desc_t : public base_desc_t
+{
+public:
+    // segment descriptor type
     enum
     {
-        DESC_TYPE_CODE = 0b1010,
-        DESC_TYPE_DATA = 0b0010,
-        DESC_TYPE_TSS  = 0b1001
+        SDT_CODE      = 0b1010, // not system type
+        SDT_DATA      = 0b0010, // not system type
+        SDT_LDT       = 0b0010, // system type
+        SDT_TSS       = 0b1001, // system type
     };
 
-    void reset()
+    inline void
+    base(uint32_t base) {
+        _seg.base_l =  base & 0xffff;
+        _seg.base_m = (base >> 16) & 0xff;
+        _seg.base_h = (base >> 24) & 0xff;
+    }
+
+    inline uint32_t
+    base() const {
+        return _seg.base_l       |
+               _seg.base_m << 16 |
+               _seg.base_h << 24;
+    }
+
+    inline void
+    limit(uint32_t limit) {
+        _seg.limit_l = limit & 0xffff;
+        _seg.limit_h = (limit >> 16) & 0xf;
+    }
+
+    inline uint32_t
+    limit() const {
+        return _seg.limit_l | (_seg.limit_h << 16);
+    }
+
+    inline void
+    granualar(bool g) {
+        _seg.g = g ? 1 : 0;
+    }
+
+    inline bool
+    granular() const {
+         return _seg.g != 0;
+    }
+};
+
+// code segment descriptor
+class code_desc_t : public segment_desc_t
+{
+
+public:
+    code_desc_t() {
+        reset();
+    }
+
+    void reset(uint32_t bs = 0, uint32_t lmt = 0)
     {
-        _limit_l = 0;
-        _base_l  = 0;
-        _base_m  = 0;
-        _type    = 0;
-        _s       = 0; // code/data segment
-        _dpl     = 0;
-        _p       = 1; // normally true
-        _limit_h = 0;
-        _avl     = 0;
-        _l       = 0;
-        _d       = 0;
-        _g       = 1; // 4K is default, 0 = byte
-        _base_h  = 0;
-    }
-
-    void initialize(uint8_t  type,
-                    uint32_t base,
-                    uint32_t limit,
-                    uint8_t  dpl,
-                    bool     gran4k  = true,
-                    bool     present = true,
-                    bool     sys     = false)
-    {
-         // 0 for tss/ldt (system)
-         // 1 for code/data segment
-        _type = type;
-        _dpl  = dpl;
-        _g    = gran4k  ? 1 : 0;
-        _p    = present ? 1 : 0;
-        _s    = sys     ? 0 : 1;
-        set_limit(limit);
-        set_base(base);
-    }
-
-    void set_base(uint32_t base) {
-        _base_l =  base & 0xffff;
-        _base_m = (base >> 16) & 0xff;
-        _base_h = (base >> 24) & 0xff;
-    }
-
-    uint32_t get_base() const {
-        return _base_l | _base_m << 16 | _base_h << 24;
-    }
-
-    void set_limit(uint32_t limit) {
-        _limit_l = limit & 0xffff;
-        _limit_h = (limit >> 16) & 0xf;
-    }
-
-    uint32_t get_limit() const {
-        return _limit_l | (_limit_h << 16);
+        zeroize();
+        _seg.type = SDT_CODE;
+        // 0 for system, not a system segment
+        _seg.s    = 1;
+        // default: 4K granular
+        _seg.g    = 1;
+        base(bs);
+        limit(lmt);
     }
 };
 
 // data segment descriptor
-using data_desc_t = code_desc_t;
-using tss_desc_t  = code_desc_t;
-
-/* ---------------------------------------------------------------------------
- * Gate Descriptors 
- * To provide controlled access to code segments with different privilege
- * levels, the processor provides special set of descriptor called gate
- * descriptors. there're four kinds of gate descriptor:
- * 1. Call Gates
- * 2. Trap Gates
- * 3. Interrupt Gates
- * 4. Task Gates
- * 
- * Task gates are used for task task switching, but it's kinda expensive.
- * modern operating systems use other approachs to do task-switching.
- * 
- * ------------------------------------------------------------------------ */
-
-class gate_desc_t
+class data_desc_t : public segment_desc_t
 {
 public:
-    uint16_t _offset_l;     // entry point of function
-    uint16_t _selector;     // segment selector
-    uint8_t  _parm_cnt : 5, // parameter count
-             _rsrv     : 3; // reserved
-    uint8_t  _type     : 5, // gate type
-             _dpl      : 2, // descriptor privilege level
-             _p        : 1; // gate valid
-    uint16_t _offset_h;
-
-public:
-    enum // descriptor type
-    {
-        DT_CALL_GATE  =  0b0000'1100,
-        DT_TRAP_GATE  =  0b0000'1111,
-        DT_TASK_GATE  =  0b0000'0101
-    };
-    void initialize(uint32_t offset,
-                    uint16_t selector,
-                    uint8_t  type,
-                    uint8_t  dpl,
-                    // interrupt gates and trap gates are not using
-                    // parameter count
-                    uint8_t  param_cnt = 0)
-    {
-        set_offset(offset);
-        _selector = selector;
-        _type     = type      & 0b0001'1111;
-        _dpl      = dpl       & 0b0000'0011;
-        _parm_cnt = param_cnt & 0b0001'1111;
-        _p        = 1;
+    data_desc_t() {
+        reset();
     }
 
-
-
-    void set_offset(uint32_t offset) {
-        _offset_l = (uint16_t)offset;
-        _offset_h = (uint16_t)(offset >> 16);
-    }
-
-    uint32_t get_offset() const {
-        return _offset_l | _offset_h << 16;
+    void reset(uint32_t bs = 0, uint32_t lmt = 0)
+    {
+        zeroize();
+        _seg.type = SDT_DATA;
+        // 0 for system, not a system segment
+        _seg.s    = 1;
+        // default: 4K granular
+        _seg.g    = 1;
+        base(bs);
+        limit(lmt);
     }
 };
+
+// tss segment descriptor
+class tss_desc_t : public segment_desc_t
+{
+
+public:
+    tss_desc_t() {
+        reset();
+    }
+
+    void reset(uint32_t bs = 0, uint32_t lmt = 0)
+    {
+        zeroize();
+        _seg.type = SDT_TSS;
+        // 0 for system
+        _seg.s    = 0;
+        // default: byte granular
+        _seg.g    = 0;
+        base(bs);
+        limit(lmt);
+    }
+};
+
+// /* ---------------------------------------------------------------------------
+//  * Gate Descriptors 
+//  * To provide controlled access to code segments with different privilege
+//  * levels, the processor provides special set of descriptor called gate
+//  * descriptors. there're four kinds of gate descriptor:
+//  * 1. Call Gates
+//  * 2. Trap Gates
+//  * 3. Interrupt Gates
+//  * 4. Task Gates
+//  * 
+//  * Task gates are used for task task switching, but it's kinda expensive.
+//  * modern operating systems use other approachs to do task-switching.
+//  * 
+//  * ------------------------------------------------------------------------ */
+
+class gate_desc_t : public base_desc_t
+{
+protected:
+
+public:
+    enum
+    {
+        GT_CALL_GATE  = 0b0000'1100, // call gate
+        GT_TRAP_GATE  = 0b0000'1111, // trap gate
+        GT_TASK_GATE  = 0b0000'0101, // task gate
+        GT_INTR_GATE  = 0b0000'1110, // 32-bit interrupt gate
+    };
+
+public:
+    inline void
+    selector(uint16_t sl) {
+        _gate.selector = sl;
+    }
+
+    inline uint16_t
+    selector() const {
+        return _gate.selector;
+    }
+
+    inline void
+    offset(uint32_t ofst) {
+        _gate.offset_l = ofst & 0xFFFF;
+        _gate.offset_h = ofst >> 16;
+    }
+
+    inline uint16_t
+    offset() const {
+        return _gate.offset_l |
+               _gate.offset_h << 16;
+    }
+};
+
+// interrupt gate descriptor
+class ig_desc_t : public gate_desc_t
+{
+public:
+    ig_desc_t() {
+        reset();
+    }
+
+
+    inline void
+    reset(uint16_t sl   = 0, // selector
+          uint32_t ofst = 0) // offset
+    {
+        zeroize();
+        _gate.type = GT_INTR_GATE;
+        selector(sl);
+        offset(ofst);
+    }
+};
+
 
 
 

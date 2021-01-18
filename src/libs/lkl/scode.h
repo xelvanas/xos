@@ -210,7 +210,7 @@ class scode_t
 {
     kbdms_t    _md;
     uint8_t    _sc;
-    // static char s_keymap[][16];
+
 public:
     enum
     {
@@ -225,7 +225,7 @@ public:
         SC_KEY_DOWN     = 0x50, // with ext code
     };
 
-    scode_t(){
+    scode_t() {
 
     }
 

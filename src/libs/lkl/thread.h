@@ -200,5 +200,4 @@ private:
     thread_t() = delete;
 };
 
-
 ns_lite_kernel_lib_end

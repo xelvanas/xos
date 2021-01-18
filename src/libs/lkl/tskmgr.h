@@ -46,6 +46,9 @@ public:
     static void
     unblock_thread(thread_t* th);
 
+    static bool
+    create_process(uint32_t func);
+
 protected:
     static void
     task_switch(
@@ -53,8 +56,8 @@ protected:
         thread_t* next
     );
 
-    // a simple unique tid
-    // should pray for OS will not create thread more than 0xFFFFFFFF
+    // a simple unique tid implementation
+    // should pray for that OS will not create threads more than 0xFFFFFFFF
     // :-)
     static uint32_t
     make_tid() {

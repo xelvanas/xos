@@ -10,9 +10,11 @@ ns_lite_kernel_lib_begin
 // Memory Manager
 pool_t mem_mgr::_kp_pool;
 pool_t mem_mgr::_kv_pool;
-
+lock_t mem_mgr::_lock;
 void mem_mgr::init()
 {
+    auto_lock al(_lock);
+
     uint32_t phys_addr = 0;
     uint32_t phsy_size = 0;
     __inner_detect_valid_mem(phys_addr, phsy_size);
@@ -75,6 +77,8 @@ void* mem_mgr::alloc(page_type_t pt, uint32_t cnt)
 {
     if(cnt == 0)
         return nullptr;
+    
+    auto_lock al(_lock);
 
     if(pt == PT_KERNEL) {
         return __inner_alloc_pages(_kp_pool, _kv_pool, cnt);
@@ -82,6 +86,23 @@ void* mem_mgr::alloc(page_type_t pt, uint32_t cnt)
         // allocate user memory
     }
     return nullptr;
+}
+
+void*
+mem_mgr::alloc_phys_page(uint32_t cnt)
+{
+    if(cnt == 0)
+        return nullptr;
+
+    auto_lock al(_lock);
+    return _kp_pool.alloc(cnt);
+}
+
+static uint32_t
+v2p(uint32_t addr)
+{
+    pte_t pte = addr;
+    return pte.address() + (addr&pte.PG_12BIT_FLAG);
 }
 
 uint32_t mem_mgr::__inner_detect_unallocated_pte(
@@ -162,7 +183,7 @@ void* mem_mgr::__inner_alloc_pages(
     return (void*)vaddr;
 }
 
-void mem_mgr::__inner_detect_valid_mem(
+void mem_mgr:: __inner_detect_valid_mem(
     uint32_t& addr,
     uint32_t& len)
 {
@@ -182,6 +203,5 @@ void mem_mgr::__inner_detect_valid_mem(
 
 //
 //---------------------------------------------------------------------------
-
 
 ns_lite_kernel_lib_end

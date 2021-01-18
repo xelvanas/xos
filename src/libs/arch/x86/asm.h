@@ -4,6 +4,69 @@
 #include <bit.h>
 #include <string.h>
 #include <debug.h>
+
+class eflags_t
+{
+private:
+    uint32_t _flags;
+
+public:
+    enum 
+    {
+        FLAG_CF     = 0x0000'0001, // Carry Flag
+        FLAG_RSRV1  = 0x0000'0002, //  - reserved, always 1
+        FLAG_PF     = 0x0000'0004, // Parity Flag
+        FLAG_RSRV2  = 0x0000'0008, //  - reserved, 0
+        FLAG_AF     = 0x0000'0010, // Auxiliary Carry Flag
+        FLAG_RSRV3  = 0x0000'0020, //  - reserved, 0
+        FLAG_ZF     = 0x0000'0040, // Zero Flag
+        FLAG_SF     = 0x0000'0080, // Sign Flag
+        FLAG_TF     = 0x0000'0100, // Trap Flag
+        FLAG_IF     = 0x0000'0200, // Interrupt Flag
+        FLAG_DF     = 0x0000'0400, // Direction Flag
+        FLAG_OF     = 0x0000'0800, // Overflow Flag
+        FLAG_IOPL   = 0x0000'1000, // I/O Privilege Level
+        FLAG_NT     = 0x0000'2000, // Nested Task
+        FLAG_RSRV4  = 0x0000'4000, //  - reserved
+        FLAG_RF     = 0x0000'8000, // Resume Flag, 0
+        FLAG_VM     = 0x0001'0000, //Virtual-8086 Flag
+        FLAG_AC     = 0x0002'0000, // Alignment Check / Access Control
+        FLAG_VIF    = 0x0004'0000, // Virtual Interrupt Flag
+        FLAG_VIP    = 0x0008'0000, // Virtual Interrupt Pending
+        FLAG_ID     = 0x0010'0000, // ID Flag
+        FLAG_RSRV5  = 0xFFE0'0000, //  - reserved, 0
+    };
+
+    eflags_t()
+    : _flags(FLAG_RSRV1) {
+    }
+
+    eflags_t(uint32_t flags)
+    : _flags(flags) {
+
+    }
+
+    inline void
+    set(uint32_t flags, bool state = true) {
+        lkl::bit_set(_flags, flags, state);
+    }
+
+    inline bool
+    test(uint32_t flags) const {
+        return lkl::bit_test(_flags, flags);
+    }
+
+    const eflags_t& operator= (uint32_t flags) {
+        _flags = flags;
+        return *this;
+    }
+
+    inline
+    operator uint32_t() const {
+        return _flags;
+    }
+};
+
 class x86_asm
 {
 public:
@@ -93,7 +156,9 @@ public:
 
     static inline bool
     is_interrupt_on() {
-        return lkl::bit_test(x86_asm::get_eflags(), 0x0200);
+        return lkl::bit_test(
+            x86_asm::get_eflags(),
+            eflags_t::FLAG_IF);
     }
 
     static inline void
@@ -146,7 +211,7 @@ public:
         gdt_desc_t desc;
         store_gdt(&desc);
 
-        if(desc._size + 1 > len) {
+        if(desc.size + 1 > len) {
             // buffer is too small
             return nullptr;
         }
@@ -175,11 +240,11 @@ public:
         if(memcpy_s(
             dst,
             len,
-            (void*)desc._address,
-            desc._size+1) == 0) {
-            desc._address = (uint32_t)dst;
+            (void*)desc.address,
+            desc.size+1) == 0) {
+            desc.address = (uint32_t)dst;
             load_gdt(&desc);
-            return (uint8_t*)dst + desc._size + 1;
+            return (uint8_t*)dst + desc.size + 1;
         }
         return nullptr;
     }

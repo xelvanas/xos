@@ -213,19 +213,18 @@ public:
     };
     static isr_t s_isrs[IDT_ENT_CNT];
 public:
-    static void init(gate_desc_t* ent, uint32_t len) {
+    static void init(ig_desc_t* ent, uint32_t len) {
         
         for(uint32_t i = 0;i < len; ++i) {
-            ent[i].initialize((uint32_t)isr_tbl[i],
-                              GDT_CODE_SEG,
-                              IDT_TYPE,
-                              0);
+            ent[i].reset(GDT_CODE_SEG, (uint32_t)isr_tbl[i]);
+            ent[i].present(true);
         }
 
         idt_desc_t desc = {
-            (uint16_t)(sizeof(gate_desc_t)*len - 1),
+            (uint16_t)(sizeof(ig_desc_t)*len - 1),
             (uint32_t)ent
         };
+
         x86_asm::load_idt(&desc);
     }
 

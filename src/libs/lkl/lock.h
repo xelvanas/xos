@@ -25,4 +25,23 @@ public:
     release();
 };
 
+class auto_lock
+{
+    lock_t& _lock;
+public:
+    
+    auto_lock(lock_t& lock) : _lock(lock) {
+        _lock.acquire();
+    }
+
+    ~auto_lock() {
+        _lock.release();
+    }
+
+    // non-assignable
+    auto_lock(auto_lock const&) = delete;
+    auto_lock& operator=(auto_lock const&) = delete;
+private:
+};
+
 ns_lite_kernel_lib_end

@@ -1,6 +1,8 @@
 #pragma once
 #include <lkl.h>
+#include <x86/pg.h>
 #include <bitmap.h>
+
 
 ns_lite_kernel_lib_begin
 
@@ -11,10 +13,6 @@ private:
     uint32_t          _start_addr;
     uint32_t          _free_pg;
 public:
-    enum
-    {
-        PAGE_SIZE = 0x1000, // 4K one page
-    };
 
     pool_t()
         : _start_addr(0),
@@ -69,7 +67,7 @@ public:
         }
 
         // round it up
-        nbits = _free_pg + _bmp.BIT_SUPREMUM;
+        // nbits = _free_pg + _bmp.BIT_SUPREMUM;
 
         // set bitmap buffer
         _bmp.reset((uint8_t*)buf, bufsz);
@@ -105,7 +103,7 @@ public:
     {
         // address out of range
         if((_start_addr > (uint32_t)addr) ||
-        (_start_addr + _bmp.limit() * PAGE_SIZE < (uint32_t)addr))
+           (_start_addr + _bmp.limit() * PAGE_SIZE < (uint32_t)addr))
         {
             return;
         }

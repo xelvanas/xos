@@ -45,7 +45,7 @@ public:
     getc();
 
     void
-    wait(bool producer);
+    wait(bool who);
 
     void
     signal(bool producer);

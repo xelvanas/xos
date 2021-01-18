@@ -1,9 +1,10 @@
 #pragma once
 #include <lkl.h>
+#include <x86/pg.h>
 #include <bitmap.h>
 #include <pool.h>
-#include <x86/paging.h>
 #include <string.h>
+#include <lock.h>
 
 /*
  * Real Mode Address Space (less than 1 MByte)
@@ -128,20 +129,12 @@
 
 ns_lite_kernel_lib_begin
 
-// class phys_mem_mgr
-// {
-// private:
-//     pool_t _kp_pool;
-// public:
-//     void init()
-
-// };
-
 class mem_mgr
 {
 private:
     static pool_t _kp_pool;
     static pool_t _kv_pool;
+    static lock_t _lock;
 private:
     enum
     {
@@ -162,14 +155,22 @@ public:
         PT_USER     = 1,
     };
 
-    enum
-    {
-        PAGE_SIZE        = 0x1000,
-    };
+    static void
+    init();
 
-    static void init();
+    /*
+     * 'alloc' allocates physical pages and virtual pages
+     * maps virtual pages on phsical pages if allocation successed.
+     * return 'nullptr' if failed.
+     */
+    static void*
+    alloc(page_type_t pt, uint32_t cnt);
 
-    static void* alloc(page_type_t pt, uint32_t cnt);
+    static void*
+    alloc_phys_page(uint32_t cnt);
+
+    static uint32_t
+    v2p(uint32_t addr);
 
 private:
     // creating an instance is disallowed.

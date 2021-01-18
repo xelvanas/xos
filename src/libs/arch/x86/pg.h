@@ -78,6 +78,15 @@
 
 #pragma pack(push, 1)
 
+inline extern const int PAGE_SIZE   = 0x1000;
+inline extern const int PD_ENT_NUM  = 0x0400; // page-directory entry num
+inline extern const int PT_ENT_NUM  = 0x0400; // page-table entry num
+
+struct raw_pg_ent_t
+{
+
+};
+
 // page generic entry
 // can present both pde and pte
 class pge_t
@@ -101,6 +110,12 @@ public:
         PG_12BIT_FLAG   = 0x00000FFF,
         PG_ADDRESS      = 0xFFFFF000
     };
+
+    pge_t() = default;
+
+    pge_t(uint32_t v) 
+        : _value(v) {
+    }
 
     // get present
     bool present() const {
@@ -287,7 +302,7 @@ public:
     void fill(uint32_t start, 
               uint32_t end,
               uint32_t value,
-              uint32_t step = 0x1000)
+              uint32_t step = PAGE_SIZE)
     {
         if(start >= _len && end > _len)
             return;

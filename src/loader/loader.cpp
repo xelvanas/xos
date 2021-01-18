@@ -34,7 +34,7 @@
 #include <print.h>
 #include <x86/io.h>
 #include <x86/asm.h>
-#include <x86/paging.h>
+#include <x86/pg.h>
 #include <x86/idt.h>
 #include <x86/tss.h>
 #include <debug.h>
@@ -62,10 +62,11 @@
  * so linker cannot do the job for us too
  */
 typedef void (*pfn_global_ctor)(void);
-extern pfn_global_ctor  __init_array_start[];
-extern pfn_global_ctor  __init_array_end[];
-#define CTORS_START    (__init_array_start[0])
-#define CTORS_END      (__init_array_end)
+extern  pfn_global_ctor  __init_array_start[];
+extern  pfn_global_ctor  __init_array_end[];
+#define CTORS_START     (__init_array_start[0])
+#define CTORS_END       (__init_array_end)
+
 inline void invoke_global_ctors() {
     pfn_global_ctor *ctor;
     for (void (**ctor)() = &CTORS_START; ctor < CTORS_END; ++ctor) {
@@ -192,11 +193,12 @@ int main() {
     uint32_t* ptr = (uint32_t*)addr;
 
     pic8259a::init();
-    interrupt<x86_asm>::init((gate_desc_t*)0x8000, 0x30);
+    interrupt<x86_asm>::init((ig_desc_t*)0x8000, 0x30);
     
     x86_asm::turn_interrupt_on();
     keyboard::init();
     pic8259a::enable(pic8259a::DEV_KEYBOARD);
+
     task_mgr::init();
     pic8259a::enable(pic8259a::DEV_TIMER);
     
@@ -218,5 +220,6 @@ int main() {
             } 
         }
     }
+    while(1);
     return 0;
 }
