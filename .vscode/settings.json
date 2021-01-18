@@ -15,7 +15,8 @@
         "tuple": "cpp",
         "type_traits": "cpp",
         "utility": "cpp",
-        "queue": "cpp"
+        "queue": "cpp",
+        "bit": "cpp"
     },
     "editor.rulers": [
         {

@@ -1,5 +1,7 @@
 #include <x86/asm.h>
-#include <x86/idt.h>
+#include <x86/io.h>
+
+// #include <x86/idt.h>
 #include <kbd.h>
 #include <inbb.h>
 
@@ -12,10 +14,10 @@ lkl::kbdms_t keyboard::s_modifiers;
 void
 keyboard::init()
 {
-    interrupt<x86_asm>::reg(
-        pic8259a::DEV_KEYBOARD,
-        keyboard_handler
-    );
+    // interrupt<x86_asm>::reg(
+    //     pic8259a::DEV_KEYBOARD,
+    //     keyboard_handler
+    // );
 }
 
 void

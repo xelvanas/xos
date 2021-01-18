@@ -78,9 +78,41 @@
 
 #pragma pack(push, 1)
 
-inline extern const int PAGE_SIZE   = 0x1000;
-inline extern const int PD_ENT_NUM  = 0x0400; // page-directory entry num
-inline extern const int PT_ENT_NUM  = 0x0400; // page-table entry num
+inline extern const int
+PAGE_SIZE      = 0x00001000;
+
+inline extern const int
+PD_ENT_NUM     = 0x00000400; // page-dir entry num
+
+inline extern const int
+PT_ENT_NUM     = 0x00000400; // page-table entry num
+
+inline extern const int
+MASK_H20_BITS  = 0xFFFFF000; // high   20-bits
+
+inline extern const int
+MASK_H10_BITS  = 0xFFC00000; // high   10-bits
+
+inline extern const int 
+MASK_M10_BITS  = 0x003FF000; // middle 10-bits 
+
+inline extern const int
+MASK_L12_BITS = 0x003FF000; // middle 10-bits 
+
+inline bool
+is_4k_aligned(const void* addr) {
+    return ((uint32_t)addr & 0x0000'0FFF) == 0;
+}
+
+inline uint32_t
+calc_pde_index(const void* addr) {
+    return (((uint32_t)addr & 0xffc00000) >> 22);
+}
+
+static inline uint32_t
+calc_pte_index(const void* addr) {
+    return (((uint32_t)addr & 0x003ff000) >> 12);
+}
 
 struct raw_pde_t
 {
@@ -130,7 +162,10 @@ public:
     };
 
 public:
-    pge_t() = default;
+    pge_t()
+        : _value(0) {
+
+    }
     pge_t(uint32_t val)
         : _value(val) {
 
@@ -142,71 +177,71 @@ public:
     }
 
     // must be true to map a 'page' or 'page table' 
-    bool
+    inline bool
     present() const {
         return _pde.p;
     }
     
     // set whether 'page'/'page table' referenced by this entry valid.
-    void
+    inline void
     present(bool p) {
         _pde.p = p;
     }
 
     // false: read only
     // true:  writes allowed
-    bool
+    inline bool
     writable() const {
         return _pde.rw;
     }
 
     // true:  writable
     // false: read only
-    void
+    inline void
     writable(bool v) {
         _pde.rw = v;
     }
 
     // false: supervisor-mode
     // true:  user-mode
-    bool
+    inline bool
     usr() const {
         return _pde.us;
     }
 
     // false: supervisor-mode
     // true:  user-mode
-    void
+    inline void
     usr(bool v) {
         _pde.us = v;
     }
 
     // page write through state
-    bool
+    inline bool
     pwt() const {
         return _pde.pwt;
     }
 
     // set page write through state
-    void
+    inline void
     pwt(bool p) {
         _pde.pwt = p;
     }
 
     // page level cache disable 
-    bool
+    inline bool
     pcd() const {
         return _pde.pcd;
     }
 
     // set page level cache disable
-    void
+    inline void
     pcd(bool p) {
         _pde.pcd = p;
     }
 
     // test if entry accessed by software
-    bool
+    inline bool
     accessed() const {
         return _pde.a;
     }
@@ -218,35 +253,27 @@ public:
     // }
 
     // set physical address
-    void
+    inline void
     address(uint32_t addr) {
+        ASSERT(is_4k_aligned((void*)addr));
         _pde.address = addr >> 12;
     }
 
     // get physical address
-    uint32_t
+    inline uint32_t
     address() const {
         return _pde.address << 12;
     }
 
+    inline 
     operator uint32_t() const {
         return _value;
     }
 
-    const pge_t&
+    inline const pge_t&
     operator=(uint32_t val) {
         _value = val;
         return *this;
-    }
-
-    static inline uint32_t
-    get_pde_index(uint32_t addr) {
-        return ((addr & 0xffc00000) >> 22);
-    }
-
-    static inline uint32_t
-    get_pte_index(uint32_t addr) {
-        return ((addr & 0x003ff000) >> 12);
     }
 };
 
@@ -261,13 +288,15 @@ public:
     // page size
     // if cr4.PSE = 1, must be 0 (otherwise, this entry maps 4-MByte page);
     // otherwise: ignored
-    bool ps() const {
+    inline bool
+    ps() const {
         return _pde.ps;
     }
 
     // set page size
     // PDE only
-    void ps(bool p) {
+    inline void
+    ps(bool p) {
         _pde.ps = p;
     }
 };
@@ -284,7 +313,8 @@ public:
     // indicates whether software was written to this 4-Kbyte page
     // referenced by this entry
     // can be used as a guard to detect overflow
-    bool dirty() const {
+    inline bool
+    dirty() const {
         return _pte.d;
     }
 
@@ -296,72 +326,80 @@ public:
     // Page Attribute Table
     // if the PAT is supported, indirectly determines the memory type used
     // to access the 4-KByte page referenced by this entry
-    bool pat() const {
+    inline bool
+    pat() const {
         return _pte.pat;
     }
 
     // Page Attribute Table
     // if the PAT is supported, indirectly determines the memory type used
     // to access the 4-KByte page referenced by this entry
-    void pat(bool p) {
+    inline void
+    pat(bool p) {
         _pte.pat = p;
     }
 
     // Global:
     // if cr4.PGE = 1, determines whether the translation is global;
     // otherwise: ignored.
-    bool global() const {
+    inline bool
+    global() const {
         return _pte.g;
     }
 
     // Global:
     // if cr4.PGE = 1, determines whether the translation is global;
     // otherwise: ignored.
-    void global(bool g) {
+    inline void
+    global(bool g) {
         _pte.g = g;
     }
 };
 
 
 // page entry array
-class pea_t
+class pg_dir_t
 {
-    uint32_t _len;
     pge_t*   _array;
+    uint32_t _len;
 public:
 
     // default constructor
-    pea_t() : _len(0), _array(nullptr) {
+    pg_dir_t() : _len(0), _array(nullptr) {
 
     }
     
-    pea_t(pge_t* addr, uint32_t len) :
+    pg_dir_t(pge_t* addr, uint32_t len) :
     _array(addr),
     _len(len) {
 
     }
 
-    void reset(pge_t* addr, uint32_t len) {
+    inline void
+    reset(pge_t* addr, uint32_t len) {
         _array = addr;
         _len   = len;
     }
 
-    pge_t& operator[](uint32_t idx) {
+    inline pge_t&
+    operator[](uint32_t idx) {
         ASSERT(idx < _len);
         return _array[idx];        
     }
 
-    const pge_t& operator[](uint32_t idx) const {
+    inline const pge_t&
+    operator[](uint32_t idx) const {
         ASSERT(idx < _len);
         return _array[idx];        
     }
 
     // default step is 0x1000 (4KB)
-    void fill(uint32_t start, 
-              uint32_t end,
-              uint32_t value,
-              uint32_t step = PAGE_SIZE)
-    {
+    inline void
+    fill(uint32_t start, 
+         uint32_t end,
+         uint32_t value,
+         uint32_t step = PAGE_SIZE)
+    { 
         if(start >= _len && end > _len)
             return;
 
@@ -371,7 +409,16 @@ public:
         }
     }
 
-    void copy(pge_t* src, uint32_t start, uint32_t len) {
+    inline const pg_dir_t&
+    operator=(const pg_dir_t& src) {
+        for(uint32_t i = 0; i < PD_ENT_NUM; ++i) {
+            _array[i] = src[i];
+        }
+        return *this;
+    }
+
+    inline void
+    copy(pge_t* src, uint32_t start, uint32_t len) {
         if(src == nullptr || start >= _len)
             return;
 
@@ -379,20 +426,15 @@ public:
             len = _len - start;
         }
 
-        uint32_t end = start + len > _len ?
-                       _len :
-                       start + len;
-
         for(uint32_t i = 0; i < len;++i) {
             _array[start+i]  = src[i];
         }
     }
+
 };
 
 // aliases
-// using pde_t      = pge_t;
-// using pte_t      = pge_t;
-using page_dir_t = pea_t;
-using page_tbl_t = pea_t;
+using page_dir_t = pg_dir_t;
+using page_tbl_t = pg_dir_t;
 
 #pragma pack(pop)

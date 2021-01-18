@@ -13,7 +13,7 @@ pool_t mem_mgr::_kv_pool;
 lock_t mem_mgr::_lock;
 void mem_mgr::init()
 {
-    auto_lock al(_lock);
+    lock_guard al(_lock);
 
     uint32_t phys_addr = 0;
     uint32_t phsy_size = 0;
@@ -47,7 +47,7 @@ void mem_mgr::init()
 
     memset((void*)KER_P_BMP_BUF, 0, 0x1000);
 
-    _kp_pool.init(
+    _kp_pool.reset(
         (void*)KER_P_BMP_BUF, // bitmap buffer (physical address)
         PAGE_SIZE,            // bitmap buffer size (1 page)
         start_addr,           // physical memory starting address
@@ -62,7 +62,7 @@ void mem_mgr::init()
     auto addr = _kp_pool.alloc(0xF00);
     ASSERT((uint32_t)addr == start_addr);
     
-    _kv_pool.init(
+    _kv_pool.reset(
         (void*)KER_V_BMP_BUF, // bitmap buffer
         PAGE_SIZE,            // bitmap buffer size
         KER_V_ADDR_START,     // starting kernel virtual address
@@ -78,7 +78,7 @@ void* mem_mgr::alloc(page_type_t pt, uint32_t cnt)
     if(cnt == 0)
         return nullptr;
     
-    auto_lock al(_lock);
+    lock_guard al(_lock);
 
     if(pt == PT_KERNEL) {
         return __inner_alloc_pages(_kp_pool, _kv_pool, cnt);
@@ -94,7 +94,7 @@ mem_mgr::alloc_phys_page(uint32_t cnt)
     if(cnt == 0)
         return nullptr;
 
-    auto_lock al(_lock);
+    lock_guard al(_lock);
     return _kp_pool.alloc(cnt);
 }
 
@@ -159,15 +159,15 @@ void* mem_mgr::__inner_alloc_pages(
 
     if(&mpool == &_kp_pool) {
         // allocating kernel memory
-        if(_kp_pool.free_pg_cnt() < cnt + pgs) {
+        if(_kp_pool.free_page_count() < cnt + pgs) {
             // not enough memory to allocate
             vpool.free((void*)vaddr, cnt);
             return nullptr;
         }
     } else {
         // allocating user memroy
-        if(_kp_pool.free_pg_cnt() < pgs ||
-           mpool.free_pg_cnt()    < cnt) 
+        if(_kp_pool.free_page_count() < pgs ||
+           mpool.free_page_count()    < cnt) 
         {
             vpool.free((void*)vaddr, cnt);
             return nullptr;

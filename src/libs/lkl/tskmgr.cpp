@@ -1,7 +1,8 @@
 #include <tskmgr.h>
-#include <x86/idt.h>
 #include <thread.h>
 #include <memory.h>
+#include <x86/asm.h>
+#include <intmgr.h>
 
 extern "C" void __task_switch(
     uint32_t* __th1_stack,
@@ -137,9 +138,9 @@ task_mgr::init()
     __inner_cur_thrd_as_main_thrd();
 
     // register scheduler as ISR for 
-    interrupt<x86_asm>::reg(
-        pic8259a::DEV_TIMER,
-        task_mgr::scheduler);
+    // interrupt<x86_asm>::reg(
+    //     pic8259a::DEV_TIMER,
+    //     task_mgr::scheduler);
 }
 
 thread_t* task_mgr::current_thread() {
@@ -233,7 +234,7 @@ task_mgr::unblock_thread(thread_t* th)
         th->is_magic_dashed() == false &&
         th->is_blocked());
 
-    auto_intr<x86_asm> ai(false);
+    intr_guard guard(false);
     
     th->state(thread_t::TS_READY);
     s_rdy_queue.push_back(th->node_ptr());

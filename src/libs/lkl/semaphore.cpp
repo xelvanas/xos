@@ -1,14 +1,14 @@
 #include <semaphore.h>
 #include <thread.h>
-#include <x86/idt.h>
 #include <tskmgr.h>
+#include <intmgr.h>
 
 ns_lite_kernel_lib_begin
 
 void
 semaphore_t::down()
 {
-    auto_intr<x86_asm> aintr(false);
+    intr_guard guard(false);
     while(_value == 0) {
         
         auto th = task_mgr::current_thread();
@@ -22,7 +22,7 @@ semaphore_t::down()
 void
 semaphore_t::up()
 {
-    auto_intr<x86_asm> aintr(false);
+    intr_guard guard(false);
     thread_t* th = _wait_queue.empty() ?
                    nullptr :
                    _wait_queue.pop_front()->get();

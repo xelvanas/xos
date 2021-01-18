@@ -69,8 +69,7 @@ int strcpy_s(
             }
         }
     }
-
-    __dst[0];
+    __dst[0] = 0;
     return ERANGE;
 }
 

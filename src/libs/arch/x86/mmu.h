@@ -348,7 +348,6 @@ public:
 // tss segment descriptor
 class tss_desc_t : public segment_desc_t
 {
-
 public:
     tss_desc_t() {
         reset();

@@ -103,10 +103,8 @@
 
 ns_lite_kernel_lib_begin
 
-/*
- * 'Memory Detecting' has already been done at 'boot stage'.
- * normally, we don't change the value of ards_t.
- */
+// 'Memory Detecting' has already been done at 'boot stage'.
+// normally, we don't change the value of ards_t.
 class ards_t
 {
 private:
@@ -135,17 +133,19 @@ public:
         _type    = type;
     }
 
-    void set_type(uint32_t type) {
-        _type = type;
-    }
+    // system or bios will provide those content
+    // we don't need to modify them
+    // void set_type(uint32_t type) {
+    //     _type = type;
+    // }
 
-    void set_address(uint64_t addr) {
-        _address = addr;
-    }
+    // void set_address(uint64_t addr) {
+    //     _address = addr;
+    // }
 
-    void set_length(uint64_t len) {
-        _length = len;
-    }
+    // void set_length(uint64_t len) {
+    //     _length = len;
+    // }
 
     bool is_usable() const {
         return _type == T_USABLE;

@@ -39,6 +39,8 @@ CFLAGS   += -fno-builtin#         # Don't recognize built-in functions that
 CFLAGS   += -nostdinc#            # Do not search the standard system
                                   # directories for header files.
 
+CFLAGS   += -fno-threadsafe-statics#
+
 CFLAGS	 += -nostdlib#            # Do not use the standard system startup
                                   # files or libraries when linking.
 								  

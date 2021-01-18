@@ -35,16 +35,15 @@
 #include <x86/io.h>
 #include <x86/asm.h>
 #include <x86/pg.h>
-#include <x86/idt.h>
 #include <x86/tss.h>
 #include <debug.h>
-#include <timer.h>
 #include <memory.h>
 #include <tskmgr.h>
 #include <lock.h>
 #include <kbd.h>
 #include <inbb.h>
 #include <scode.h>
+#include <kc.h>
 
 /* 
  * In normal situations, compiler and standard libs did a lot of jobs
@@ -97,19 +96,43 @@ void msg_paging_enabled() {
     dbg_msg("Paging Enabled.\n");
 }
 
+void enable_paging(void* addr)
+{
+    pge_t pge;
+    pge.writable(true);
+    pg_dir_t dir((pge_t*)addr, PD_ENT_NUM);
+    dir.fill(0, PD_ENT_NUM, pge, 0);
+
+    // fill first PDE
+    pge.present(true);
+    pge.address((uint32_t)addr + PAGE_SIZE); // first PTE address
+    dir[0] = pge;
+
+    // last PDE
+    pge.address((uint32_t)addr);
+    dir[PD_ENT_NUM-1] = pge;
+
+    // fill first page table
+    dir.reset((pge_t*)((uint32_t)addr + PAGE_SIZE), PT_ENT_NUM);
+    pge.address(0); // 0x00000000 -> 0x00400000;
+    dir.fill(0, PT_ENT_NUM, pge);
+
+    x86_asm::set_cr3((uint32_t)addr);
+    x86_asm::turn_paging_on();
+}
+
+/*
 void enable_paging(uint32_t addr) {
 
     const uint32_t entry_num = 1024;
-    pde_t pde;
-    pde.present(false); // not present yet
-    pde.usr(false); // user-mode accesses disallowed
+    pde_t    pde;
+    uint32_t offset = 0;
     pde.writable(true); // not read-only
     
     // 'page directory' address is 'addr'(def:0x00100000)
     // 'page directory' has 1024 PDEs
     page_dir_t pd((pge_t*)addr, entry_num);
-    pd.fill(0, entry_num, pde, 0);
-
+    pd.fill(0, PD_ENT_NUM, pde, 0);
     pde.present(true);
 
     // first 'page table' address is at 0x00101000
@@ -119,11 +142,11 @@ void enable_paging(uint32_t addr) {
     // 4K/page * 1024 entries = 4MB
     // also map 16MB to 0xC0000000-0xC0FFFFFF
     pde.address(addr + 0x1000);
-    pd.fill(0,   4,   pde, 0x1000);
-    pd.fill(768, 772, pde, 0x1000);
+    pd.fill(0,   4,   pde);
+    pd.fill(768, 772, pde);
 
     pde.address(addr + 0x5000);
-    pd.fill(772, 1022, pde, 0x1000);
+    pd.fill(772, PD_ENT_NUM-1, pde);
 
     // last pde points to 'page directory' itself.
     pde.address(addr);
@@ -147,13 +170,12 @@ void enable_paging(uint32_t addr) {
     }
     
     // CR3 has two attributes
-    // but its default value could be zeroes
+    // but their default values could be zeroes
     x86_asm::set_cr3((uint32_t)addr);
 
     // enable paging
     x86_asm::turn_paging_on();
-    //x86_asm::set_cr0(x86_asm::get_cr0() | 0x80000000);
-}
+}*/
 
 void thread_a(void* arg) {
     
@@ -174,52 +196,53 @@ void thread_b(void* arg) {
 }
 
 int main() {
-    // never move any code before invoke_global_ctors()
-    // unless you know what you're doing.
-    invoke_global_ctors();
 
-    msg_welcome();
-    enable_paging(0x00100000);
-    msg_paging_enabled();
-    tss_t::init();
-    mem_mgr::init();
 
-    auto addr = mem_mgr::alloc(mem_mgr::PT_KERNEL, 1);
-    dbg_mhl(
-        "kernel pool allocated:",
-        (uint32_t)addr,
-        color_t::F_LIGHT_GREEN);
+    auto& creator = k_creator::instance();
+    creator.initialize();
+
+    // invoke_global_ctors();
+
+    // msg_welcome();
+    // enable_paging((void*)0x00100000);
+    // msg_paging_enabled();
+    // tss_t::init();
+    // mem_mgr::init();
+    //auto& kc = k_creator::instance();
+
+    // auto addr = mem_mgr::alloc(mem_mgr::PT_KERNEL, 1);
+    // dbg_mhl(
+    //     "kernel pool allocated:",
+    //     (uint32_t)addr,
+    //     color_t::F_LIGHT_GREEN);
     
-    uint32_t* ptr = (uint32_t*)addr;
+    // uint32_t* ptr = (uint32_t*)addr;
 
-    pic8259a::init();
-    interrupt<x86_asm>::init((ig_desc_t*)0x8000, 0x30);
+    // pic8259a::init();
+    // interrupt<x86_asm>::init((ig_desc_t*)0x8000, 0x30);
     
-    x86_asm::turn_interrupt_on();
-    keyboard::init();
-    pic8259a::enable(pic8259a::DEV_KEYBOARD);
+    // x86_asm::turn_interrupt_on();
+    // keyboard::init();
+    // pic8259a::enable(pic8259a::DEV_KEYBOARD);
 
-    task_mgr::init();
-    pic8259a::enable(pic8259a::DEV_TIMER);
+    // task_mgr::init();
+    // pic8259a::enable(pic8259a::DEV_TIMER);
     
-    pit8253::freq(4000);
-    task_mgr::begin_thread(thread_a, nullptr, "thA", 5);
-    task_mgr::begin_thread(thread_b, nullptr, "thB", 10);
+    // pit8253::freq(4000);
+    // task_mgr::begin_thread(thread_a, nullptr, "thA", 5);
+    // task_mgr::begin_thread(thread_b, nullptr, "thB", 10);
 
-    while(1) {
-        // g_screen_lock.acquire();
-        // dbg_msg("main ");
-        // g_screen_lock.release();
-        auto_intr<x86_asm> ai(false);
-        scode_t sc = g_kbd_buffer.getc();
-        if(sc.is_visible() ||
-           sc.is_special()) 
-        {
-            if(sc.is_key_down()) {
-                dbg_char(sc);
-            } 
-        }
-    }
+    // while(true) {
+    //     auto_intr<x86_asm> ai(false);
+    //     scode_t sc = g_kbd_buffer.getc();
+    //     if(sc.is_visible() ||
+    //        sc.is_special()) 
+    //     {
+    //         if(sc.is_key_down()) {
+    //             dbg_char(sc);
+    //         } 
+    //     }
+    // }
     while(1);
     return 0;
 }

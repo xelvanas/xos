@@ -1,9 +1,7 @@
-#include <x86/idt.h>
-#include <print.h>
+#pragma once
+#include <x86/io.h>
+#include <bit.h>
 
-using namespace lkl;
-
-uint32_t::pic8259a::_states = 0;
 /*  -------------------------------------------------------------------------
  * 8259A PROGRAMMABLE INTERRUPT CONTROLLER
  * The Intel 8259A Programmable Interrupt Controller handles up to eight
@@ -161,83 +159,81 @@ uint32_t::pic8259a::_states = 0;
  * 1       1      Set special mask
  * ------------------------------------------------------------------------ */
 
-void pic8259a::init()
+class pic8259a
 {
-    // OS only needs initialization once
-    if(bit_test(_states, PIC_INITIALIZED)) {
-        return;
+private:
+    bool _initialized : 1 = false;
+    enum
+    {   // ports
+        PIC_M_CTRL      = 0x20,
+        PIC_M_DATA      = 0X21,
+        PIC_S_CTRL      = 0xA0,
+        PIC_S_DATA      = 0xA1
+    };
+public:
+    pic8259a(pic8259a&&)            = delete;
+    pic8259a(const pic8259a&)       = delete;
+    void operator=(pic8259a&&)      = delete;
+    void operator=(const pic8259a&) = delete;
+public:
+    enum DevIntrVct
+    {
+        DIV_BASE        = 0x20,
+        DEV_TIMER       = 0x20, 
+        DEV_KEYBOARD    = 0x21, 
+        DEV_CASCADE     = 0x22, 
+        DEV_SERI_PORT2  = 0x23, 
+        DEV_SERI_PORT1  = 0x24, 
+        DEV_PARL_PORT2  = 0x25, 
+        DEV_FLOPPY      = 0x26, 
+        DEV_PARL_PORT1  = 0x27, 
+        DEV_RTC         = 0x28, 
+        DEV_REDIRECT    = 0x29, 
+        DEV_PS2         = 0x2C, 
+        DEV_FPU_EXCEPT  = 0x2D, 
+        DEV_HDD         = 0x2E,
+    };
+private:
+    pic8259a() = default;
+
+    void init();
+
+    bool initialized() const {
+        return _initialized;
     }
-    //-------------------------------------------------------------------
-    // INITIALIZE MASTER 8259A
-    // ICW 1: port 0x20
-    // Bit 0: IC4
-    //        1 = ICW4 needed, 0 = no ICW4 needed, x86: 1
-    // Bit 1: Single
-    //        1 = single, 0 = cascade mode (has slave(s))
-    // Bit 2: for 8025, x86: 0
-    // Bit 3: 1 = level triggered mode, 0 = edge triggered mode
-    // Bit 4: always 1 on x86
-    // Bit 5-7: for 8085, x86: 0
-    x86_io::outb(PIC_M_CTRL, 0b00010001); // bit 4 and bit 0
     
-    // ICW 2: port 0x21/0xA1
-    // 3-7 bits indicate starting interrupt vector (SIV)
-    // 0-2 bits indicate current interrupt vector (CIV)
-    // the real interrupt vector = SIV + CIV
-    // 8259A only needs to know SIV
-    // NOTICE: we specify 0x20 (decimal:32, binary: 0b00100000)
-    // it doesn't mean that most-significant 5 bits 0xb00100 indicates
-    // that our starting 'interrupt-vector' is 0b00100 = 4.
-    // it says, our starting 'interrupt-vector' is 32.
-    // you cannot specify a number like 0b0000'1111 = 15, 3 least
-    // significant bits are ignored and will be filled by 8259A.
-    x86_io::outb(PIC_M_DATA, 0b0010'0000); // 32
-    
-    // ICW 3 (Master): port 0x21/0xA1
-    // any bit set 1 indicates that IR input has a slave
-    x86_io::outb(PIC_M_DATA, 0b0000'0100);
-    
-    // ICW 4:
-    // only bit we need to set for now is: μPM = 1 = 8086/8088 mode
-    x86_io::outb(PIC_M_DATA, 0b0000'0001);
-
-    //-------------------------------------------------------------------
-    // INITIALIZE SLAVE 8259A
-    // ICW 1: same as master
-    x86_io::outb(PIC_S_CTRL, 0x11);
-
-    // ICW 2: 0x28 = 0b0010'1000 = 40
-    // starting 'interrupt-vector' is 40
-    x86_io::outb(PIC_S_DATA, 0x28);
-
-    // ICW 3: which master IR input the slave 8259A is connecting.
-    x86_io::outb(PIC_S_DATA, 0x02);
-
-    // ICW 4: same as master
-    x86_io::outb(PIC_S_DATA, 0x01);
-
-    // OCW 1: 1 indicates the channel is masked
-    //        0 indicates the channel is enabled.
-    // all irq masked at beginning.
-    x86_io::outb(PIC_M_DATA, 0b1111'1111);
-
-    // Slave OCW 1: all channel masked
-    x86_io::outb(PIC_S_DATA, 0b1111'1111);
-
-    bit_set(_states, PIC_INITIALIZED, true);
-}
-
-
-void main_cxx_isr(uint32_t no) {
-    ASSERT(no < interrupt<x86_asm>::IDT_ENT_CNT);
-    
-    auto han = interrupt<x86_asm>::s_isrs[no];
-
-    if(han != nullptr) {
-        han(no);
-    } else {
-        interrupt<x86_asm>::display_name(no);
+    void enable(DevIntrVct div) {
+        __inner_set_div(div, false);
     }
-}
 
+    void disable(DevIntrVct div) {
+        __inner_set_div(div, true); 
+    }
 
+    // imr: interrupt mask register
+    uint8_t get_master_imr() {
+        return x86_io::inb(PIC_M_DATA);
+    }
+
+    // imr: interrupt mask register
+    uint8_t get_slave_imr() {
+        return x86_io::inb(PIC_S_DATA);
+    }
+public:
+    static pic8259a&
+    instance() {
+        static pic8259a s_pic;
+        return s_pic;
+    }
+
+private:
+    void
+    __inner_set_div(DevIntrVct div, bool b) {
+        uint8_t dev = div-DIV_BASE;
+        uint8_t imr = dev < 8 ? get_master_imr() : get_slave_imr();
+        lkl::bit_set(imr, 1 << dev, b);
+        x86_io::outb(
+            dev < 8 ? PIC_M_DATA: PIC_S_DATA,
+            imr);
+    }
+};

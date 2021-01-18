@@ -83,6 +83,13 @@
 // Programable Interval Timer 8253
 class pit8253
 {
+private:
+    pit8253() = default;
+public:
+    pit8253(pit8253&&)           = delete;
+    pit8253(const pit8253&)      = delete;
+    void operator=(pit8253&&)      = delete;
+    void operator=(const pit8253&) = delete;
 public:
     enum
     {
@@ -95,8 +102,9 @@ public:
         PIT_OPT_MODE    = 2
     };
 public:
-    static void
-    freq(uint16_t fq) {
+    void
+    freq(uint16_t fq)
+    {
         // frequency cannot be zero
         fq = fq == 0 ? 1 : fq;
         // write control word register: port 0x43
@@ -111,5 +119,11 @@ public:
 
         x86_io::outb(PIT_CNTR0_PORT, (uint8_t)cnt);
         x86_io::outb(PIT_CNTR0_PORT, (uint8_t)(cnt>>8));
+    }
+public:
+    static pit8253&
+    instance() {
+        static pit8253 s_pit;
+        return s_pit;
     }
 };

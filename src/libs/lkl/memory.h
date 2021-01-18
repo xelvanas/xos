@@ -129,6 +129,7 @@
 
 ns_lite_kernel_lib_begin
 
+
 class mem_mgr
 {
 private:
@@ -158,11 +159,9 @@ public:
     static void
     init();
 
-    /*
-     * 'alloc' allocates physical pages and virtual pages
-     * maps virtual pages on phsical pages if allocation successed.
-     * return 'nullptr' if failed.
-     */
+    // 'alloc' allocates physical pages and virtual pages
+    // maps virtual pages on phsical pages if allocation successed.
+    // return 'nullptr' if failed.
     static void*
     alloc(page_type_t pt, uint32_t cnt);
 
@@ -185,15 +184,15 @@ private:
     __inner_get_pde_v(uint32_t vaddr) {
         // 1. point twice PDE start
         // 2. add PDE offset * 4 (each index occupies 4 bytes)
-        return (pde_t*)((0xfffff000) + 
-        (pde_t::get_pde_index(vaddr)<<2));
+        return (pde_t*)((MASK_H20_BITS) + 
+        (calc_pde_index((void*)vaddr) << 2));
     }
 
     static inline pte_t*
     __inner_get_pte_v(uint32_t vaddr) {
-        return (pte_t*)(0xffc00000 + // point to PDE:1023
-        ((vaddr & 0xffc00000) >> 10) + // PDE as PTE (to locate PDE)
-        (pte_t::get_pte_index(vaddr) << 2)); // real PTE offset
+        return (pte_t*)(MASK_H10_BITS + // point to PDE:1023
+        ((vaddr & MASK_H10_BITS) >> 10) + // PDE as PTE (to locate PDE)
+        (calc_pte_index((void*)vaddr) << 2)); // real PTE offset
     }
 
     static inline void

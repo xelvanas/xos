@@ -25,22 +25,22 @@ public:
     release();
 };
 
-class auto_lock
+class lock_guard
 {
     lock_t& _lock;
 public:
     
-    auto_lock(lock_t& lock) : _lock(lock) {
+    lock_guard(lock_t& lock) : _lock(lock) {
         _lock.acquire();
     }
 
-    ~auto_lock() {
+    ~lock_guard() {
         _lock.release();
     }
 
     // non-assignable
-    auto_lock(auto_lock const&) = delete;
-    auto_lock& operator=(auto_lock const&) = delete;
+    lock_guard(lock_guard const&) = delete;
+    lock_guard& operator=(lock_guard const&) = delete;
 private:
 };
 

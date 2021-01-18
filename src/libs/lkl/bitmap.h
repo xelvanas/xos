@@ -8,7 +8,7 @@ class bitmap_t
 {
 private:
     bits_t*  _buf      = nullptr; // buffer
-    uint32_t _size     = 0;       // how many 'bits_t' _buf has
+    uint32_t _buf_size = 0;       // how many 'bits_t' _buf has
     uint32_t _bit_size = 0;       // bit size of buffer
     uint32_t _limit    = 0;       // bit limit, range (0, _bit_size)
 
@@ -23,35 +23,46 @@ public:
     };
 
     // default constructor
-    bitmap_t() {}
+    bitmap_t() = default;
 
     // not support len > 0x1FFFFFFF
     // cuz max value of uint32_t is 0xFFFFFFFF
     bitmap_t(bits_t* buf, uint32_t len) :
         _buf(buf),
-        _size(len),
+        _buf_size(len),
         _bit_size(len*BIT_LENGTH),
-        _limit(_bit_size)
-    {
+        _limit(_bit_size) {
 
     }
 
-    void reset(bits_t* buf, uint32_t len) {
+    void*
+    reset(bits_t* buf, uint32_t len) {
+        auto tmp  = (void*)_buf;
         _buf      = buf;
-        _size     = len;
+        _buf_size = len;
         _bit_size = len * BIT_LENGTH;
         _limit    = _bit_size;
+        return tmp;
     }
 
-    uint32_t size() const {
-        return _size;
+    void*
+    get_buffer() const {
+        return (void*)_buf;
     }
 
-    uint32_t bit_size() const {
+    // get buffer size
+    uint32_t
+    buffer_size() const {
+        return _buf_size;
+    }
+
+    uint32_t
+    bit_size() const {
         return _bit_size;
     }
 
-    bool limit(uint32_t limit) {
+    bool
+    limit(uint32_t limit) {
         if(limit >= 0 && limit <= bit_size()) {
             _limit = limit;
             return true;
@@ -59,23 +70,22 @@ public:
         return false;
     }
 
-    uint32_t limit() const {
+    uint32_t
+    limit() const {
         return _limit;
     }
 
-    bits_t mask(uint32_t idx) const {
-        return (bits_t)1 << (idx % BIT_LENGTH);
-    }
-
-    bool test(uint32_t idx, bool val = true) const {
+        bool
+    test(uint32_t idx, bool val = true) const {
         // error index
         ASSERT(idx < bit_size() && "error idx value.");
 
-        return ((_buf[idx / BIT_LENGTH] & mask(idx)) != 0) == val;
+        return ((_buf[idx / BIT_LENGTH] & bit_mask(idx)) != 0) == val;
     }
 
     // the units of 'idx' and 'len' are 'bit'
-    bool test(uint32_t idx, bool val, uint32_t len) {
+    bool
+    test(uint32_t idx, bool val, uint32_t len) {
         for (uint32_t i = 0; i < len; ++i) {
             if (test(idx + i, val) == false)
                 return false;
@@ -89,7 +99,7 @@ public:
             return;
         }
         auto& elem = _buf[idx / BIT_LENGTH];
-        elem = val ? elem | mask(idx) : elem & ~mask(idx);
+        elem = val ? elem | bit_mask(idx) : elem & ~bit_mask(idx);
     }
 
     // set _buf[idx] -> _buf[idx+len] = val
@@ -202,11 +212,18 @@ public:
         return INVALID_INDEX;
     }
 
+protected:
+
+    bits_t
+    bit_mask(uint32_t idx) const {
+        return (bits_t)1 << (idx % BIT_LENGTH);
+    }
+
     // skip those 0xFFFF/0x0000 to save time
     uint32_t roughly_find(uint32_t start, uint32_t end, bool val = true) {
         start /= BIT_LENGTH;
         end   /= BIT_LENGTH;
-        if(start >= _size) {
+        if(start >= _buf_size) {
             return INVALID_INDEX;
         }
 
